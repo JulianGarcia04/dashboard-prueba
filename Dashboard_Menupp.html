@@ -1,0 +1,2624 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Menüpp — Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#F9EDDC;--surface:#FFFAF5;--surface2:#EDE7D9;--border:#C8B89A;
+  --pink:#FF4057;--pink-dim:#D93549;--lav:#A4A4FF;--lav-dim:#8585E0;
+  --text:#071C2D;--text2:#3A5168;--text3:#6A8098;
+  --green:#1A8A50;--yellow:#A07A00;--red:#C0392B;--blue:#1A5FA8;
+  --t1:#FF4057;--t2:#C07820;--t3:#7070D0;--t4:#1A8A50;
+}
+body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+nav{background:var(--surface);border-right:1px solid var(--border);padding:16px 10px 16px 10px;display:flex;flex-direction:column;align-items:stretch;gap:3px;width:170px;position:fixed;left:0;top:0;height:100vh;z-index:200;overflow-y:auto}
+.logo{font-weight:800;font-size:16px;color:var(--pink);white-space:nowrap;text-align:center;padding:6px 4px 14px 4px;border-bottom:1px solid var(--border);margin-bottom:8px}
+.nb{background:none;border:none;color:var(--text2);padding:8px 12px;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:500;transition:all .15s;text-align:left;width:100%}
+.nb:hover{background:var(--surface2);color:var(--text)}
+.nb.active{background:rgba(255,64,87,.12);color:var(--pink);font-weight:700}
+.view{display:none;padding:20px 20px 20px 20px;max-width:1260px;margin:0;margin-left:170px}
+.view.active{display:block}
+/* cards */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px}
+.ct{font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px}
+/* grids */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.g5{display:grid;grid-template-columns:repeat(5,1fr);gap:14px}
+/* kpi */
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px}
+.kl{font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px}
+.kv{font-size:26px;font-weight:800;line-height:1}
+.ks{font-size:11px;color:var(--text3);margin-top:5px}
+.ks.up{color:var(--green)}.ks.dn{color:var(--red)}
+/* table */
+.tw{overflow-x:auto;border-radius:8px;border:1px solid var(--border)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:var(--surface2);color:var(--text2);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.5px;padding:9px 12px;text-align:left;white-space:nowrap;cursor:pointer;user-select:none}
+th:hover{color:var(--text)}
+td{padding:9px 12px;border-top:1px solid var(--border);white-space:nowrap}
+tr:hover td{background:rgba(7,28,45,.04)}
+/* badges */
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700}
+.t1{background:rgba(255,64,87,.12);color:var(--t1)}
+.t2{background:rgba(192,120,32,.12);color:var(--t2)}
+.t3{background:rgba(112,112,208,.12);color:var(--t3)}
+.t4{background:rgba(26,138,80,.12);color:var(--t4)}
+.bg{background:rgba(26,138,80,.12);color:var(--green)}
+.by{background:rgba(160,122,0,.12);color:var(--yellow)}
+.br{background:rgba(192,57,43,.12);color:var(--red)}
+.bb{background:rgba(26,95,168,.12);color:var(--blue)}
+.bgr{background:rgba(7,28,45,.08);color:var(--text2)}
+/* buttons */
+.btn{display:inline-flex;align-items:center;gap:5px;padding:8px 15px;border-radius:8px;border:none;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;transition:all .15s}
+.btn-p{background:var(--pink);color:#fff}.btn-p:hover{background:var(--pink-dim)}
+.btn-s{background:var(--surface2);color:var(--text);border:1px solid var(--border)}.btn-s:hover{background:var(--border)}
+.btn-sm{padding:5px 10px;font-size:12px}
+/* inputs */
+input[type=text],input[type=number],input[type=date],select,textarea{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:6px;font-family:inherit;font-size:13px;width:100%}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--lav)}
+input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--pink)}
+/* upload */
+#uz{border:2px dashed var(--border);border-radius:14px;padding:50px 30px;text-align:center;cursor:pointer;transition:all .25s}
+#uz:hover,#uz.drag{border-color:var(--pink);background:rgba(255,64,87,.06)}
+/* charts */
+.cw{position:relative;height:220px}
+.cw-lg{position:relative;height:280px}
+.cw-sm{position:relative;height:160px}
+/* map */
+#rest-map{height:260px;border-radius:8px;z-index:1}
+#report-map{height:220px;border-radius:8px;z-index:1}
+/* score bar */
+.sbar{height:8px;border-radius:4px;background:var(--border);overflow:hidden;margin-top:4px}
+.sbar-fill{height:100%;border-radius:4px;transition:width .3s}
+/* farmer tabs */
+.ftabs{display:flex;gap:4px;margin-bottom:16px;background:var(--surface2);border-radius:10px;padding:4px;border:1px solid var(--border)}
+.ftab{flex:1;padding:7px 10px;border-radius:7px;border:none;background:none;color:var(--text2);font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;text-align:center;transition:all .15s}
+.ftab.active{background:var(--surface);color:var(--text);box-shadow:0 1px 4px rgba(7,28,45,.12)}
+.ftab-content{display:none}.ftab-content.active{display:block}
+/* checklist card */
+.ck-card{background:var(--surface2);border:1px solid var(--border);border-radius:10px;margin-bottom:8px;overflow:hidden}
+.ck-header{padding:12px 16px;display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none}
+.ck-header:hover{background:rgba(255,255,255,.02)}
+.ck-body{padding:16px;border-top:1px solid var(--border);display:none}
+.ck-body.open{display:block}
+.ck-grid{display:flex;flex-direction:column;gap:4px}
+.ck-item{display:flex;align-items:center;gap:10px;padding:9px 12px;background:transparent;border:none;border-radius:0;cursor:pointer;border-bottom:1px solid var(--border)}
+.ck-item:last-child{border-bottom:none}
+.ck-item:hover{background:rgba(255,255,255,.03)}
+.ck-item.checked .ck-label{color:var(--text);text-decoration:none}
+.ck-item.checked .ck-dot{background:var(--green)}
+.ck-dot{width:7px;height:7px;border-radius:50%;background:var(--border);flex-shrink:0;transition:background .2s}
+.ck-label{font-size:13px;cursor:pointer;flex:1;color:var(--text2)}
+.ck-item.checked .ck-label{color:var(--text)}
+.ck-pts{font-size:11px;font-weight:700;padding:2px 7px;border-radius:10px;background:var(--surface);color:var(--text3)}
+.ck-item.checked .ck-pts{background:rgba(46,204,113,.12);color:var(--green)}
+/* prize card */
+.prize-card{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px}
+.prize-tier{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)}
+.prize-tier:last-child{border:none}
+.medal{font-size:18px;width:28px;text-align:center}
+/* week boxes */
+.wboxes{display:flex;gap:8px;flex-wrap:wrap}
+.wbox{background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:12px;flex:1;min-width:90px;text-align:center}
+.wnum{font-size:10px;font-weight:700;color:var(--text3);margin-bottom:3px}
+.wval{font-size:20px;font-weight:800}
+.wsub{font-size:10px;color:var(--text2);margin-top:2px}
+/* stat row */
+.sr{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)}
+.sr:last-child{border:none}
+.sl{font-size:13px;color:var(--text2)}
+.sv{font-size:13px;font-weight:700}
+/* report */
+.rh{background:linear-gradient(135deg,var(--pink) 0%,#7B0A2E 100%);border-radius:12px;padding:26px;color:#fff;margin-bottom:18px}
+.sav-box{background:rgba(46,204,113,.1);border:1px solid rgba(46,204,113,.3);border-radius:10px;padding:16px;text-align:center}
+/* misc */
+.mt8{margin-top:8px}.mt12{margin-top:12px}.mt16{margin-top:16px}.mt20{margin-top:20px}
+.mb8{margin-bottom:8px}.mb12{margin-bottom:12px}.mb16{margin-bottom:16px}
+.flex{display:flex;align-items:center;gap:8px}
+.fbet{display:flex;justify-content:space-between;align-items:center}
+.tp{color:var(--pink)}.tl{color:var(--lav)}.tg{color:var(--green)}.tr{color:var(--red)}.ty{color:var(--yellow)}
+.bold{font-weight:700}.tm{color:var(--text2)}.ts{font-size:12px}.txs{font-size:11px}
+.nodata{text-align:center;padding:32px;color:var(--text3);font-size:14px}
+.risk-dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:4px}
+.rl{background:var(--green)}.rm{background:var(--yellow)}.rh2{background:var(--red)}
+/* risk alerts */
+.risk-alert{background:rgba(231,76,60,.08);border:1px solid rgba(231,76,60,.3);border-radius:9px;padding:10px 14px;margin-bottom:6px;display:flex;align-items:center;gap:10px;font-size:13px}
+.risk-warn{background:rgba(241,196,15,.08);border:1px solid rgba(241,196,15,.25);border-radius:9px;padding:10px 14px;margin-bottom:6px;display:flex;align-items:center;gap:10px;font-size:13px}
+.risk-section{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:16px}
+/* tier progress */
+.tier-prog{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:16px}
+.tier-bar{height:10px;border-radius:5px;background:var(--border);overflow:hidden;margin:8px 0 4px}
+.tier-bar-fill{height:100%;border-radius:5px}
+/* add restaurant form */
+.add-form{background:rgba(155,151,200,.06);border:1px solid rgba(155,151,200,.3);border-radius:10px;padding:16px;margin-bottom:16px}
+/* score in report */
+.score-report-card{border-radius:10px;padding:16px;margin-bottom:16px}
+.score-item-row{display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:12px}
+.score-item-row:last-child{border:none}
+@media(max-width:768px){.g4,.g5{grid-template-columns:1fr 1fr}.g3{grid-template-columns:1fr}nav{gap:2px}}
+@media print{nav,.no-print{display:none!important}.view{display:block!important;padding:0;margin-right:0!important}body{background:#fff;color:#000}.card{border:1px solid #ddd;background:#fff}}
+
+/* ═══════════════ BRAND PDF / PRINT THEME ═══════════════ */
+/* Brand palette: Beige bg · Blue Code text · Red Table accent */
+@media print {
+  nav, .no-print { display:none !important; }
+  .view { margin-left:0 !important; padding:20px !important; }
+  body, #view-report {
+    --bg:#F9EDDC; --surface:#FFFAF5; --surface2:#EDE7D9; --border:#C8B89A;
+    --pink:#FF4057; --pink-dim:#D93549;
+    --text:#071C2D; --text2:#3A5168; --text3:#6A8098;
+    --green:#1A7A43; --yellow:#8A6200; --red:#C0392B; --lav:#5B7FB5;
+    background:#F9EDDC !important;
+    color:#071C2D !important;
+  }
+  .rh { background:linear-gradient(135deg,#071C2D 0%,#1A3A6B 100%) !important; }
+  .card,.kpi { background:#FFFAF5 !important; border-color:#C8B89A !important; }
+  .tw { border-color:#C8B89A !important; }
+  th { background:#071C2D !important; color:#F9EDDC !important; }
+  td { border-color:#C8B89A !important; color:#071C2D !important; }
+  .sav-box { border-color:rgba(26,122,67,.3) !important; }
+  .tier-prog { background:#EDE7D9 !important; border-color:#C8B89A !important; }
+  .tier-bar { background:#C8B89A !important; }
+  .sr { border-color:#C8B89A !important; }
+  .sl { color:#3A5168 !important; }
+}
+/* For html2canvas bulk PDF capture */
+.pdf-brand-mode {
+  --bg:#F9EDDC; --surface:#FFFAF5; --surface2:#EDE7D9; --border:#C8B89A;
+  --pink:#FF4057; --pink-dim:#D93549;
+  --text:#071C2D; --text2:#3A5168; --text3:#6A8098;
+  --green:#1A7A43; --yellow:#8A6200; --red:#C0392B; --lav:#5B7FB5;
+  background:#F9EDDC !important;
+}
+.pdf-brand-mode .rh { background:linear-gradient(135deg,#071C2D 0%,#1A3A6B 100%) !important; }
+.pdf-brand-mode .card,.pdf-brand-mode .kpi { background:#FFFAF5 !important; border-color:#C8B89A !important; }
+.pdf-brand-mode .tw { border-color:#C8B89A !important; }
+.pdf-brand-mode th { background:#071C2D !important; color:#F9EDDC !important; }
+.pdf-brand-mode td { border-color:#C8B89A !important; color:#071C2D !important; }
+.pdf-brand-mode .bold,.pdf-brand-mode .kv,.pdf-brand-mode .sv { color:#071C2D !important; }
+.pdf-brand-mode .tm,.pdf-brand-mode .sl,.pdf-brand-mode .ts { color:#3A5168 !important; }
+.pdf-brand-mode .sav-box { background:rgba(26,122,67,.08) !important; border-color:rgba(26,122,67,.25) !important; }
+.pdf-brand-mode .tier-prog { background:#EDE7D9 !important; border-color:#C8B89A !important; }
+.pdf-brand-mode .tier-bar { background:#C8B89A !important; }
+.pdf-brand-mode .sr { border-color:#C8B89A !important; }
+
+</style>
+</head>
+<body>
+
+<!-- ══════ LOGIN SCREEN ══════ -->
+<div id="login-screen" style="position:fixed;inset:0;background:#F9EDDC;z-index:9999;display:flex;align-items:center;justify-content:center;font-family:'Plus Jakarta Sans',sans-serif">
+  <div style="background:#FFFAF5;border:1px solid #C8B89A;border-radius:16px;padding:40px 48px;width:100%;max-width:400px;text-align:center">
+    <div style="font-size:28px;font-weight:800;color:#FF4057;margin-bottom:4px">menüpp</div>
+    <div style="font-size:13px;color:#3A5168;margin-bottom:32px">Dashboard interno · Farming</div>
+    <div id="login-err" style="display:none;background:rgba(192,57,43,.12);border:1px solid rgba(192,57,43,.3);color:#C0392B;border-radius:8px;padding:10px;font-size:13px;margin-bottom:16px"></div>
+    <input id="li-email" type="email" placeholder="Correo electrónico" autocomplete="email"
+      style="width:100%;background:#EDE7D9;border:1px solid #C8B89A;color:#071C2D;border-radius:8px;padding:11px 14px;font-family:inherit;font-size:14px;margin-bottom:12px;outline:none">
+    <input id="li-pass" type="password" placeholder="Contraseña" autocomplete="current-password"
+      style="width:100%;background:#EDE7D9;border:1px solid #C8B89A;color:#071C2D;border-radius:8px;padding:11px 14px;font-family:inherit;font-size:14px;margin-bottom:20px;outline:none">
+    <button onclick="doLogin()" id="li-btn"
+      style="width:100%;background:#FF4057;color:#fff;border:none;border-radius:8px;padding:12px;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer">
+      Entrar
+    </button>
+    <div style="font-size:12px;color:#6A8098;margin-top:20px">¿Olvidaste tu contraseña? Contacta a tu admin.</div>
+  </div>
+</div>
+
+<nav>
+  <div class="logo">menüpp</div>
+  <button class="nb active" id="nav-upload" onclick="showView('upload')">📤 Cargar</button>
+  <button class="nb" onclick="showView('global')">📊 Global</button>
+  <button class="nb" onclick="showView('restaurantes')">🍽 Restaurantes</button>
+  <button class="nb" onclick="showView('cobros')">💰 Cobros</button>
+  <button class="nb" onclick="showView('farmers')">👨‍💼 Farmers</button>
+  <button class="nb" onclick="showView('historico');showHistorico()">📈 Histórico</button>
+  <div style="flex:1"></div>
+  <div id="nav-user" style="display:none;padding:10px 8px;border-top:1px solid #C8B89A;margin-top:8px">
+    <div id="nav-user-email" style="font-size:11px;color:#3A5168;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:8px"></div>
+    <button onclick="doLogout()" style="width:100%;background:rgba(255,64,87,.12);border:1px solid rgba(255,64,87,.25);color:#FF4057;border-radius:7px;padding:7px;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer">Cerrar sesión</button>
+  </div>
+</nav>
+
+<!-- ══════ UPLOAD ══════ -->
+<div class="view active" id="view-upload">
+  <div style="max-width:580px;margin:0 auto">
+    <div class="fbet mb16">
+      <div><h1 style="font-size:21px;font-weight:800">Dashboard de Pedidos</h1>
+        <p class="tm ts mt8">Carga el Excel mensual de Mozrest para analizar pedidos, cobros y farmers.</p></div>
+      <button class="btn btn-s btn-sm" onclick="loadDemo()">🎲 Demo</button>
+    </div>
+    <div id="admin-upload-zone">
+    <div id="uz" onclick="document.getElementById('fi').click()"
+         ondragover="event.preventDefault();this.classList.add('drag')"
+         ondragleave="this.classList.remove('drag')"
+         ondrop="event.preventDefault();this.classList.remove('drag');handleFile(event.dataTransfer.files[0])">
+      <div style="font-size:36px;margin-bottom:10px">📂</div>
+      <h2 style="font-size:18px;font-weight:700">Arrastra tu Excel aquí</h2>
+      <p class="tm ts mt8">o haz clic para seleccionar (.xlsx)</p>
+      <p class="txs tm" style="margin-top:6px">Requiere hoja "Ordenes" con columna RESTAURANTE</p>
+    </div>
+    <input type="file" id="fi" accept=".xlsx,.xls" onchange="handleFile(this.files[0])" style="display:none">
+    <div id="ustatus" class="mt16"></div>
+    </div><!-- /admin-upload-zone -->
+    <div id="farmer-upload-msg" style="display:none;background:rgba(164,164,255,.08);border:1px solid rgba(164,164,255,.25);border-radius:12px;padding:28px;text-align:center;margin-bottom:16px">
+      <div style="font-size:32px;margin-bottom:10px">☁️</div>
+      <div style="font-weight:700;font-size:16px;margin-bottom:6px">Datos sincronizados</div>
+      <div class="ts tm">Los datos del mes los sube tu admin. Cuando estén listos aparecerán automáticamente.</div>
+    </div>
+    <div class="card mt16" id="cloud-periods" style="display:none"></div>
+    <div class="card mt16" id="hcard" style="display:none">
+      <div class="ct">📅 Historial local</div>
+      <div id="hlist"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════ GLOBAL ══════ -->
+<div class="view" id="view-global">
+  <div class="fbet mb16">
+    <div><h1 style="font-size:19px;font-weight:800" id="g-title">Global</h1>
+      <p class="tm ts" id="g-sub"></p></div>
+    <button class="btn btn-s btn-sm" onclick="exportCSV()">⬇ CSV</button>
+  </div>
+  <div class="g5 mb16">
+    <div class="kpi"><div class="kl">Total Pedidos</div><div class="kv" id="g-tot">—</div><div class="ks" id="g-tot-d"></div></div>
+    <div class="kpi"><div class="kl">Cobrables</div><div class="kv tp" id="g-cob">—</div><div class="ks" id="g-cob-d"></div></div>
+    <div class="kpi"><div class="kl">Ventas</div><div class="kv" id="g-ven">—</div><div class="ks" id="g-ven-d"></div></div>
+    <div class="kpi"><div class="kl">Ticket Prom.</div><div class="kv" id="g-tck">—</div></div>
+    <div class="kpi"><div class="kl">Restaurantes</div><div class="kv" id="g-rst">—</div></div>
+  </div>
+  <!-- Distribución por Tier -->
+  <div class="card mb16" id="tier-dist-card" style="display:none">
+    <div class="fbet mb12">
+      <div class="ct" style="margin:0">Distribución por Tier</div>
+      <div class="txs tm" style="display:flex;align-items:center;gap:6px">
+        <span style="background:rgba(26,138,80,.1);border:1px solid rgba(26,138,80,.3);color:#1A8A50;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600">⭐ 100% Checklist = 50% dto. en fee</span>
+      </div>
+    </div>
+    <div id="tier-dist-content"></div>
+  </div>
+
+  <div class="g2 mb16">
+    <div class="card"><div class="ct">Pedidos por día</div><div class="cw"><canvas id="ch-daily"></canvas></div></div>
+    <div class="card"><div class="ct">Top 15 Restaurantes</div><div class="cw"><canvas id="ch-top15"></canvas></div></div>
+  </div>
+  <div class="g3 mb16">
+    <div class="card"><div class="ct">Por Estado</div><div class="cw-sm"><canvas id="ch-est"></canvas></div></div>
+    <div class="card"><div class="ct">Por Tipo</div><div class="cw-sm"><canvas id="ch-tipo"></canvas></div></div>
+    <div class="card"><div class="ct">Por Pago</div><div class="cw-sm"><canvas id="ch-pago"></canvas></div></div>
+  </div>
+  <div class="card">
+    <div class="fbet mb12">
+      <div class="ct" style="margin:0">Todos los Restaurantes</div>
+      <input type="text" placeholder="🔍 Buscar…" style="width:200px" oninput="filterTable(this.value)">
+    </div>
+    <div class="tw"><table id="g-table">
+      <thead><tr>
+        <th onclick="sortT(0)">Restaurante ↕</th><th onclick="sortT(1)">Farmer</th>
+        <th onclick="sortT(2)">Total ↕</th><th onclick="sortT(3)">Cobrables ↕</th>
+        <th onclick="sortT(4)">Cancelados</th><th onclick="sortT(5)">Rechazados</th>
+        <th onclick="sortT(6)">Ventas ↕</th><th onclick="sortT(7)">Ticket</th>
+        <th onclick="sortT(8)">Tier</th><th onclick="sortT(9)">Score</th><th onclick="sortT(10)">Estado</th><th>Detalle</th>
+      </tr></thead>
+      <tbody id="g-tbody"></tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- ══════ RESTAURANTES ══════ -->
+<div class="view" id="view-restaurantes">
+  <div class="fbet mb16">
+    <h2 style="font-size:18px;font-weight:700">Detalle por Restaurante</h2>
+    <select id="rst-sel" onchange="drillRest(this.value)" style="width:280px">
+      <option value="">— Selecciona un restaurante —</option>
+    </select>
+  </div>
+  <div id="rst-detail"><div class="nodata">Selecciona un restaurante para ver su detalle</div></div>
+</div>
+
+<!-- ══════ COBROS ══════ -->
+<div class="view" id="view-cobros">
+  <div class="fbet mb16">
+    <div><h1 style="font-size:19px;font-weight:800">Cobros</h1><p class="tm ts" id="cob-per"></p></div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <select id="dl-farmer-sel" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:8px;font-family:inherit;font-size:12px;height:32px">
+        <option value="">Todos los restaurantes</option>
+      </select>
+      <button id="btn-dl-informes" class="btn btn-p btn-sm" onclick="downloadAllReports(this)">📥 Descargar Informes</button>
+      <button class="btn btn-s btn-sm" onclick="exportFacturasExcel()">📊 Excel Facturas</button>
+      <button class="btn btn-s btn-sm" onclick="exportCobrosCSV()">⬇ CSV</button>
+    </div>
+  </div>
+  <div class="g4 mb16">
+    <div class="kpi"><div class="kl">Total a Cobrar</div><div class="kv tp" id="cob-total">—</div></div>
+    <div class="kpi"><div class="kl">Órdenes Cobrables</div><div class="kv" id="cob-ords">—</div></div>
+    <div class="kpi"><div class="kl">Pendientes</div><div class="kv ty" id="cob-pend">—</div></div>
+    <div class="kpi"><div class="kl">Pagados</div><div class="kv tg" id="cob-paid">—</div></div>
+  </div>
+  <div class="card">
+    <div class="ct">Detalle por restaurante</div>
+    <div class="tw"><table>
+      <thead><tr><th>Restaurante</th><th>Farmer</th><th>Cobrables</th><th>Tier</th><th>Fee/orden</th><th>Total</th><th>Estado pago</th><th>Notas</th></tr></thead>
+      <tbody id="cob-tbody"></tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- ══════ FARMERS ══════ -->
+<div class="view" id="view-farmers">
+  <div class="fbet mb16">
+    <h1 style="font-size:19px;font-weight:800">Farmers / KAMs</h1>
+    <div class="flex">
+      <button class="btn btn-p btn-sm" onclick="saveFarmers()">💾 Guardar</button>
+    </div>
+  </div>
+  <div class="ftabs">
+    <button class="ftab active" onclick="showFTab('asignar')">👥 Asignar</button>
+    <button class="ftab" onclick="showFTab('checklist')">✅ Checklist & Score</button>
+    <button class="ftab" onclick="showFTab('performance')">📊 Performance</button>
+    <button class="ftab" onclick="showFTab('premios')">🏆 Premios</button>
+  </div>
+
+  <!-- TAB: ASIGNAR -->
+  <div class="ftab-content active" id="ft-asignar">
+    <div class="g2">
+      <div class="card">
+        <div class="ct">Asignar farmers a restaurantes</div>
+        <div style="max-height:500px;overflow-y:auto" id="farmer-list"></div>
+      </div>
+      <div class="card">
+        <div class="ct">Performance por farmer</div>
+        <div class="tw"><table>
+          <thead><tr><th>Farmer</th><th>Restaurantes</th><th>Cobrables</th><th>Ventas</th><th>vs Ant.</th></tr></thead>
+          <tbody id="farmer-perf"></tbody>
+        </table></div>
+      </div>
+    </div>
+    <div class="g2 mt16">
+      <div class="card"><div class="ct">Cobrables por farmer</div><div class="cw"><canvas id="ch-fc"></canvas></div></div>
+      <div class="card"><div class="ct">Restaurantes por farmer</div><div class="cw"><canvas id="ch-fr"></canvas></div></div>
+    </div>
+  </div>
+
+  <!-- TAB: CHECKLIST -->
+  <div class="ftab-content" id="ft-checklist">
+    <div class="fbet mb16" style="gap:12px">
+      <div class="card" style="flex:1;padding:12px 16px">
+        <div class="fbet">
+          <div class="ct" style="margin:0">Filtrar por KAM</div>
+          <select id="ck-filter" onchange="renderChecklist()" style="width:200px">
+            <option value="">Todos los restaurantes</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn btn-p" onclick="toggleAddForm()">+ Agregar restaurante</button>
+    </div>
+
+    <!-- Formulario agregar restaurante -->
+    <div id="add-rest-form" class="add-form" style="display:none">
+      <div class="ct">Nuevo restaurante en seguimiento</div>
+      <div class="g3" style="gap:10px">
+        <div><label class="txs tm" style="display:block;margin-bottom:4px">Nombre del restaurante *</label>
+          <input type="text" id="nr-name" placeholder="Ej: La Sevillana"></div>
+        <div><label class="txs tm" style="display:block;margin-bottom:4px">KAM asignado *</label>
+          <input type="text" id="nr-farmer" placeholder="Nombre del farmer"></div>
+        <div><label class="txs tm" style="display:block;margin-bottom:4px">Link Menüpp</label>
+          <input type="text" id="nr-link" placeholder="menupp.co/..."></div>
+      </div>
+      <div class="g2 mt12" style="gap:10px">
+        <div><label class="txs tm" style="display:block;margin-bottom:4px">Fecha capacitación</label>
+          <input type="date" id="nr-cap"></div>
+        <div><label class="txs tm" style="display:block;margin-bottom:4px">Estado inicial</label>
+          <select id="nr-estado">
+            <option value="Construcción">En construcción (capacitado, sin pedidos)</option>
+            <option value="Sin capacitar">Sin capacitar (próximo a onboarding)</option>
+          </select></div>
+      </div>
+      <div class="mt12"><label class="txs tm" style="display:block;margin-bottom:4px">Notas del farmer</label>
+        <input type="text" id="nr-notas" placeholder="Ej: Dueño comprometido, abrió hace 2 meses…"></div>
+      <div class="flex mt12">
+        <button class="btn btn-p btn-sm" onclick="addManualRest()">💾 Guardar</button>
+        <button class="btn btn-s btn-sm" onclick="toggleAddForm()">Cancelar</button>
+      </div>
+    </div>
+
+    <!-- Alertas de riesgo -->
+    <div id="risk-alerts-wrap"></div>
+    <div id="ck-list"></div>
+  </div>
+
+  <!-- TAB: PERFORMANCE -->
+  <div class="ftab-content" id="ft-performance">
+    <div class="g4 mb16" id="perf-kpis"></div>
+    <div class="card mb16">
+      <div class="ct">Ranking KAMs — Mes actual</div>
+      <div class="tw"><table>
+        <thead><tr>
+          <th>Pos.</th><th>KAM</th><th>Capacitados</th><th>Activados</th><th>Act. Derivados</th>
+          <th>% Activación</th><th>Tiempo prom.</th><th>Score prom.</th><th>Restaurantes</th>
+        </tr></thead>
+        <tbody id="perf-tbody"></tbody>
+      </table></div>
+    </div>
+    <div class="g2">
+      <div class="card"><div class="ct">Activados derivados por KAM</div><div class="cw"><canvas id="ch-pact"></canvas></div></div>
+      <div class="card"><div class="ct">Score promedio por KAM</div><div class="cw"><canvas id="ch-pscore"></canvas></div></div>
+    </div>
+  </div>
+
+  <!-- TAB: PREMIOS -->
+  <div class="ftab-content" id="ft-premios">
+    <div class="card mb16" style="background:rgba(255,52,100,.06);border-color:rgba(255,52,100,.2)">
+      <div class="ct">Tabla de premios mensuales</div>
+      <div class="g3">
+        <div>
+          <div class="bold ts mb8">🎯 Activados Derivados</div>
+          <div class="prize-tier"><span class="medal">🥇</span><span class="ts">8 o más</span><span class="bold ts tg" style="margin-left:auto">$100.000</span></div>
+          <div class="prize-tier"><span class="medal">🥈</span><span class="ts">6 a 7</span><span class="bold ts ty" style="margin-left:auto">$70.000</span></div>
+          <div class="prize-tier"><span class="medal">🥉</span><span class="ts">5</span><span class="bold ts" style="color:#CD7F32;margin-left:auto">$50.000</span></div>
+        </div>
+        <div>
+          <div class="bold ts mb8">⏱ Menor Tiempo de Activación</div>
+          <div class="prize-tier"><span class="medal">🥇</span><span class="ts">menos de 5 días</span><span class="bold ts tg" style="margin-left:auto">$100.000</span></div>
+          <div class="prize-tier"><span class="medal">🥈</span><span class="ts">5 a 8 días</span><span class="bold ts ty" style="margin-left:auto">$70.000</span></div>
+          <div class="prize-tier"><span class="medal">🥉</span><span class="ts">9 a 11 días</span><span class="bold ts" style="color:#CD7F32;margin-left:auto">$50.000</span></div>
+        </div>
+        <div>
+          <div class="bold ts mb8">⭐ Mayor Score Promedio</div>
+          <div class="prize-tier"><span class="medal">🥇</span><span class="ts">91% – 100%</span><span class="bold ts tg" style="margin-left:auto">$100.000</span></div>
+          <div class="prize-tier"><span class="medal">🥈</span><span class="ts">81% – 90%</span><span class="bold ts ty" style="margin-left:auto">$70.000</span></div>
+          <div class="prize-tier"><span class="medal">🥉</span><span class="ts">70% – 80%</span><span class="bold ts" style="color:#CD7F32;margin-left:auto">$50.000</span></div>
+        </div>
+      </div>
+      <div class="mt12 txs tm">Premio Grupal: 3 oros = $100k · 2 oros = $70k · 1 oro = $50k por KAM</div>
+    </div>
+    <div id="premios-cards" class="g3"></div>
+  </div>
+</div>
+
+<!-- ══════ HISTÓRICO ══════ -->
+<div class="view" id="view-historico">
+  <h1 style="font-size:21px;font-weight:800;margin-bottom:4px">📈 Vista Histórica</h1>
+  <p id="hist-sub" class="tm ts mb16"></p>
+  <div id="hist-nodata" class="card" style="display:none;text-align:center;padding:40px 20px">
+    <div style="font-size:32px;margin-bottom:12px">📂</div>
+    <div class="bold mb8">Sin historial disponible</div>
+    <div class="ts tm">Carga al menos un archivo Excel para comenzar a acumular historial. Con 2 o más meses podrás comparar tendencias.</div>
+  </div>
+  <div id="hist-content" style="display:none">
+    <!-- Tendencias globales -->
+    <div class="g3 mb16">
+      <div class="card"><div class="ct">Pedidos cobrables por mes</div><div class="cw"><canvas id="ch-hist-cob"></canvas></div></div>
+      <div class="card"><div class="ct">Ventas totales por mes</div><div class="cw"><canvas id="ch-hist-ven"></canvas></div></div>
+      <div class="card"><div class="ct">Ticket promedio por mes</div><div class="cw"><canvas id="ch-hist-tck"></canvas></div></div>
+    </div>
+    <!-- Comparador -->
+    <div class="card mb16">
+      <div class="ct mb12">⚖️ Comparador de meses</div>
+      <div style="display:flex;gap:12px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+        <select id="cmp-a" onchange="renderComparador()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:8px;font-family:inherit;font-size:13px;flex:1;min-width:140px"></select>
+        <span class="tm ts">vs</span>
+        <select id="cmp-b" onchange="renderComparador()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:8px;font-family:inherit;font-size:13px;flex:1;min-width:140px"></select>
+      </div>
+      <div id="cmp-table"></div>
+    </div>
+    <!-- Evolución por restaurante -->
+    <div class="card mb16">
+      <div class="ct mb12">🍽 Evolución por restaurante</div>
+      <select id="hist-rest-sel" onchange="renderRestEvol()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:8px;font-family:inherit;font-size:13px;width:100%;margin-bottom:14px"></select>
+      <div style="height:220px;position:relative"><canvas id="ch-hist-rest"></canvas></div>
+      <div id="hist-rest-kpis" style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap"></div>
+    </div>
+    <!-- Ranking histórico -->
+    <div class="card mb16">
+      <div class="ct mb12">🏆 Ranking histórico de restaurantes</div>
+      <div id="hist-ranking"></div>
+    </div>
+    <!-- Descomposición del crecimiento -->
+    <div class="card mb16">
+      <div class="ct mb12">🔬 Descomposición del crecimiento</div>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:14px">¿El crecimiento viene de <strong>más restaurantes</strong> o de <strong>más pedidos por restaurante existente</strong>?</p>
+      <div id="growth-decomp"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════ FIREBASE CONFIG ═══════════════════
+// 👉 Reemplaza estos valores con los de tu proyecto Firebase
+const FIREBASE_CONFIG = {
+  apiKey:            "TU_API_KEY",
+  authDomain:        "TU_PROJECT.firebaseapp.com",
+  projectId:         "TU_PROJECT_ID",
+  storageBucket:     "TU_PROJECT.appspot.com",
+  messagingSenderId: "TU_SENDER_ID",
+  appId:             "TU_APP_ID"
+};
+const ADMIN_EMAILS = ['product@menupp.co']; // Emails con permiso de subir Excel
+
+let fbApp, fbAuth, fbDb, fbStorage, currentUser=null, isAdmin=false;
+
+function initFirebase(){
+  // Si el config tiene los placeholders, saltar auth y entrar directo
+  if(FIREBASE_CONFIG.apiKey.startsWith('TU_')){
+    document.getElementById('login-screen').style.display='none';
+    isAdmin=true; // modo local: acceso total
+    return;
+  }
+  try{
+    fbApp     = firebase.initializeApp(FIREBASE_CONFIG);
+    fbAuth    = firebase.auth();
+    fbDb      = firebase.firestore();
+    fbStorage = firebase.storage();
+    fbAuth.onAuthStateChanged(user=>{
+      if(user){
+        currentUser=user;
+        isAdmin=ADMIN_EMAILS.includes(user.email);
+        document.getElementById('login-screen').style.display='none';
+        document.getElementById('nav-user').style.display='block';
+        document.getElementById('nav-user-email').textContent=user.email;
+        // Admin ve upload Excel; Farmer ve mensaje de sincronización
+        document.getElementById('nav-upload').style.display = isAdmin ? '' : 'none';
+        document.getElementById('admin-upload-zone').style.display = isAdmin ? '' : 'none';
+        document.getElementById('farmer-upload-msg').style.display = isAdmin ? 'none' : 'block';
+        loadCloudData().then(()=>renderCloudPeriods());
+      } else {
+        currentUser=null; isAdmin=false;
+        document.getElementById('login-screen').style.display='flex';
+        document.getElementById('nav-user').style.display='none';
+      }
+    });
+  }catch(e){
+    console.error('Firebase init error:',e);
+    // Si Firebase no está configurado, continuar sin auth (modo local)
+    document.getElementById('login-screen').style.display='none';
+  }
+}
+
+async function doLogin(){
+  const email=document.getElementById('li-email').value.trim();
+  const pass =document.getElementById('li-pass').value;
+  const err  =document.getElementById('login-err');
+  const btn  =document.getElementById('li-btn');
+  if(!email||!pass){err.textContent='Completa todos los campos.';err.style.display='block';return;}
+  btn.textContent='Entrando…'; btn.disabled=true; err.style.display='none';
+  try{
+    await fbAuth.signInWithEmailAndPassword(email,pass);
+    document.getElementById('li-pass').value='';
+  }catch(e){
+    const msgs={
+      'auth/user-not-found':'Usuario no encontrado.',
+      'auth/wrong-password':'Contraseña incorrecta.',
+      'auth/invalid-email':'Correo no válido.',
+      'auth/too-many-requests':'Demasiados intentos. Intenta más tarde.'
+    };
+    err.textContent=msgs[e.code]||'Error al iniciar sesión.';
+    err.style.display='block';
+  }finally{btn.textContent='Entrar';btn.disabled=false;}
+}
+
+async function doLogout(){
+  if(confirm('¿Cerrar sesión?')) await fbAuth.signOut();
+}
+
+// Enter en inputs de login
+document.addEventListener('DOMContentLoaded',()=>{
+  document.getElementById('li-pass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+  document.getElementById('li-email').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('li-pass').focus();});
+  initFirebase();
+});
+
+// ── Guardar en Firestore (debounced) ──────────────────────────────────────────
+const _saveTimers={};
+function cloudSave(key, data){
+  LS.set(key, data); // cache local inmediato
+  if(!fbDb||!currentUser) return;
+  clearTimeout(_saveTimers[key]);
+  _saveTimers[key]=setTimeout(async()=>{
+    try{ await fbDb.collection('config').doc(key).set({data}); }
+    catch(e){ console.warn('cloudSave error',key,e); }
+  }, 800);
+}
+
+// ── Cargar todos los datos desde Firestore al hacer login ─────────────────────
+async function loadCloudData(){
+  if(!fbDb) return;
+  const keys=['farmers','fees','history','pay_st','ck_data','manual_rests'];
+  try{
+    const snaps = await Promise.all(keys.map(k=>fbDb.collection('config').doc(k).get()));
+    snaps.forEach((snap,i)=>{
+      if(snap.exists){
+        const val=snap.data().data;
+        LS.set(keys[i], val);
+        if(keys[i]==='farmers')     FARMERS=val;
+        if(keys[i]==='fees')        FEES=val;
+        if(keys[i]==='history')     HISTORY=val;
+        if(keys[i]==='pay_st')      PAY_ST=val;
+        if(keys[i]==='ck_data')     CK_DATA=val;
+        if(keys[i]==='manual_rests')MANUAL_RESTS=val;
+      }
+    });
+    // Cargar pedidos desde Storage
+    await loadCloudOrders();
+  }catch(e){ console.warn('loadCloudData error',e); }
+}
+
+// ── Pedidos en Firebase Storage ───────────────────────────────────────────────
+async function saveCloudOrders(){
+  if(!fbStorage||!currentUser||!isAdmin||!S.currentPeriod) return;
+  const payload=JSON.stringify({orders:S.orders, details:S.details, period:S.currentPeriod});
+  // Guardar por período: orders/2026-01.json, orders/2026-02.json, etc.
+  await fbStorage.ref(`orders/${S.currentPeriod}.json`).putString(payload,'raw',{contentType:'application/json'});
+  // Actualizar lista de períodos disponibles en Firestore
+  const metaRef=fbDb.collection('config').doc('orders_meta');
+  const meta=(await metaRef.get()).data()||{periods:[]};
+  const periods=[...new Set([...(meta.periods||[]),S.currentPeriod])].sort();
+  await metaRef.set({periods, latest:S.currentPeriod, updated:new Date().toISOString()});
+  renderCloudPeriods(); // refrescar lista
+}
+
+async function loadCloudOrders(period){
+  if(!fbStorage) return;
+  try{
+    const metaSnap=await fbDb.collection('config').doc('orders_meta').get();
+    const meta=metaSnap.exists?metaSnap.data():null;
+    if(!meta) return;
+    const target=period||meta.latest;
+    if(!target) return;
+    const url=await fbStorage.ref(`orders/${target}.json`).getDownloadURL();
+    const resp=await fetch(url);
+    const data=await resp.json();
+    S.orders=data.orders||[];
+    S.details=data.details||[];
+    S.currentPeriod=data.period||target;
+    if(S.orders.length){
+      S.orders.forEach(o=>{if(o.fecha&&typeof o.fecha==='string')o.fecha=new Date(o.fecha);});
+      saveHistory(); populateRstSel();
+      showStatus('ok',`☁️ ${S.orders.length.toLocaleString()} pedidos · ${[...new Set(S.orders.map(o=>o.rest))].length} restaurantes · ${S.currentPeriod}`);
+      renderHistCard(); renderCloudPeriods(); showView('global');
+    }
+  }catch(e){
+    if(e.code!=='storage/object-not-found') console.warn('loadCloudOrders error',e);
+  }
+}
+
+function renderCloudPeriods(){
+  const wrap=document.getElementById('cloud-periods');
+  if(!wrap||!fbDb) return;
+  fbDb.collection('config').doc('orders_meta').get().then(snap=>{
+    if(!snap.exists){wrap.style.display='none';return;}
+    const {periods=[]}=snap.data();
+    if(!periods.length){wrap.style.display='none';return;}
+    wrap.style.display='';
+    const months={'01':'Enero','02':'Febrero','03':'Marzo','04':'Abril','05':'Mayo','06':'Junio','07':'Julio','08':'Agosto','09':'Septiembre','10':'Octubre','11':'Noviembre','12':'Diciembre'};
+    wrap.innerHTML=`<div class="ct mb12">☁️ Meses disponibles en la nube</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        ${[...periods].reverse().map(p=>{
+          const [y,m]=p.split('-');
+          const active=S.currentPeriod===p;
+          return `<button onclick="loadCloudOrders('${p}')"
+            style="background:${active?'rgba(255,52,100,.15)':'var(--surface2)'};border:1px solid ${active?'rgba(255,52,100,.5)':'var(--border)'};color:${active?'var(--pink)':'var(--text)'};border-radius:8px;padding:8px 14px;font-family:inherit;font-size:13px;font-weight:${active?'700':'500'};cursor:pointer">
+            ${months[m]||m} ${y}${active?' ✓':''}
+          </button>`;
+        }).join('')}
+      </div>`;
+  }).catch(()=>{wrap.style.display='none';});
+}
+
+// ═══════════════════ CONSTANTS ═══════════════════
+const NO_COB = new Set(['Rechazado','Cancelado','Cancelada','Rejected','Cancelled']);
+// Mozrest usa "Completado", "En camino", "En preparación", "Aceptado" como estados cobrables
+const isCob = r => { const e=(r.estado||'').trim(); return e!=='' && !NO_COB.has(e); };
+
+const COLORS = ['#FF4057','#A4A4FF','#FF8C42','#1A8A50','#1A5FA8','#A07A00','#C0392B','#1ABC9C','#8E44AD','#E67E22','#16A085','#2980B9','#D35400','#27AE60','#7F8C8D'];
+
+const SCORE_ITEMS = [
+  {k:'link_ig',    l:'Link IG',              pts:5},
+  {k:'gmaps',      l:'Google Maps',          pts:5},
+  {k:'tripadv',    l:'Trip Advisor',         pts:5},
+  {k:'perfil_wa',  l:'Perfil WhatsApp',      pts:5},
+  {k:'difusion',   l:'Difusión BD',          pts:10},
+  {k:'fotos',      l:'Fotos',                pts:5},
+  {k:'upsell',     l:'Up-Selling',           pts:5},
+  {k:'crosssell',  l:'Cross-Selling',        pts:5},
+  {k:'prod_excl',  l:'Producto Exclusivo',   pts:10},
+  {k:'cupon1',     l:'Cupón 1er Pedido',     pts:10},
+  {k:'cupon_rec',  l:'Cupón Recompra',       pts:5},
+  {k:'pauta',      l:'Campaña Pauta',        pts:10},
+  {k:'historias',  l:'Historias Destacadas', pts:10},
+  {k:'post_redes', l:'Post Redes Sociales',  pts:10},
+]; // total max = 100
+
+const MAX_SCORE = SCORE_ITEMS.reduce((s,i)=>s+i.pts,0); // 100
+
+const LS = {
+  get:k=>{try{return JSON.parse(localStorage.getItem('mpp_'+k))}catch{return null}},
+  set:(k,v)=>{try{localStorage.setItem('mpp_'+k,JSON.stringify(v))}catch{}}
+};
+
+// ═══════════════════ STATE ═══════════════════
+const S = { orders:[], details:[], currentPeriod:null };
+let FARMERS   = LS.get('farmers')  || {};   // { rest: 'KAM name' }
+let FEES      = LS.get('fees')     || {};   // { rest: number }
+let HISTORY   = LS.get('history')  || {};   // { 'YYYY-MM': { rest: {cobrable,total,ventas,ticket} } }
+let PAY_ST    = LS.get('pay_st')   || {};   // { 'YYYY-MM:rest': {status,note} }
+let CK_DATA      = LS.get('ck_data')      || {};   // { rest: { fecha_cap, items:{k:bool} } }
+let MANUAL_RESTS = LS.get('manual_rests') || {};   // { rest: { farmer, link, notas, fecha_cap, estado, added } }
+
+const charts = {};
+let leafMap = null;
+let reportMap = null;
+let tableData=[], sortCol=0, sortAsc=false, filterQ='';
+
+// ═══════════════════ NAV ═══════════════════
+function showView(id){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelectorAll('.nb').forEach(b=>b.classList.remove('active'));
+  document.getElementById('view-'+id).classList.add('active');
+  const btn = document.querySelector(`.nb[onclick="showView('${id}')"]`);
+  if(btn) btn.classList.add('active');
+  if(id==='global') renderGlobal();
+  if(id==='cobros') renderCobros();
+  if(id==='farmers') renderFarmers();
+}
+
+function showFTab(id){
+  document.querySelectorAll('.ftab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.ftab-content').forEach(c=>c.classList.remove('active'));
+  document.getElementById('ft-'+id).classList.add('active');
+  event.currentTarget.classList.add('active');
+  if(id==='checklist') renderChecklist();
+  if(id==='performance') renderPerformance();
+  if(id==='premios') renderPremios();
+}
+
+// ═══════════════════ TIER ═══════════════════
+function getTier(n){
+  if(n<500)  return {tier:1,fee:550,label:'Tier 1',cls:'t1'};
+  if(n<1000) return {tier:2,fee:525,label:'Tier 2',cls:'t2'};
+  if(n<5000) return {tier:3,fee:500,label:'Tier 3',cls:'t3'};
+  return            {tier:4,fee:475,label:'Tier 4',cls:'t4'};
+}
+function feeFor(name,cobN){
+  const base=FEES[name]!=null?Number(FEES[name]):getTier(cobN).fee;
+  // 50% descuento si checklist 100% completado ese mes
+  const d=CK_DATA[name];
+  const score=d&&d.items?SCORE_ITEMS.reduce((s,i)=>s+(d.items[i.k]?i.pts:0),0):0;
+  return score>=MAX_SCORE?Math.round(base*0.5):base;
+}
+function has100Score(name){const d=CK_DATA[name];return d&&d.items&&SCORE_ITEMS.reduce((s,i)=>s+(d.items[i.k]?i.pts:0),0)>=MAX_SCORE;}
+
+// ═══════════════════ PARSE ═══════════════════
+function handleFile(file){ if(!file)return; const r=new FileReader(); r.onload=e=>parseExcel(e.target.result,file.name); r.readAsArrayBuffer(file); }
+
+function parseExcel(buf,fname){
+  try{
+    const wb = XLSX.read(buf,{type:'array',cellDates:true});
+    const wsN = wb.SheetNames.find(s=>s.toLowerCase().includes('ordenes')||s.toLowerCase().includes('órdenes'));
+    if(!wsN){showStatus('error','No se encontró hoja "Ordenes"');return;}
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wsN],{defval:''});
+    if(!rows.length){showStatus('error','Hoja Ordenes vacía');return;}
+    const norm = rows.map(r=>{const o={};for(const k in r)o[k.trim().toUpperCase()]=r[k];return o;});
+    const keys = Object.keys(norm[0]);
+    const find = (...opts) => keys.find(k=>opts.some(o=>k.includes(o.toUpperCase())))||'';
+    console.log('Columnas Mozrest:', keys); // debug en consola
+    const C = {
+      id:    find('ID DE ORDEN','ID ORDEN','ORDER ID'),
+      rest:  find('RESTAURANTE','RESTAURANT'),
+      // Nombres exactos de Mozrest (confirmados)
+      est:   find('ESTADO DEL PEDIDO','ESTADO PEDIDO','ESTADO ORDEN','ORDER STATUS','ESTADO'),
+      fecha: find('FECHA DE ENTREGA','FECHA DE CREACION','FECHA','DATE','CREATED'),
+      tot:   find('TOTAL','MONTO','VALOR','AMOUNT'),
+      tipo:  find('TIPO DE ORDEN','PO DE ORDEN','TIPO','TYPE','CANAL'),
+      pago:  find('MÉTODO DE PAGO','METODO DE PAGO','ESTADO DEL PAGO','ESTADO DE PAGO','PAGO','PAYMENT','METODO'),
+      dom:   find('DOMICILIARIO','REPARTIDOR','COURIER'),
+      lat:   find('LATITUD','LAT','COORDENADAS'),
+      lng:   find('LONGITUD','LNG','LON'),
+      desc:  find('DESCUENTOS','DESCUENTO','DISCOUNT'),
+      envio: find('COSTO DE ENTREGA','COSTO ENTREGA','ENTREGA','COSTO DE ENVIO','COSTO ENVIO','SHIPPING','DELIVERY'),
+    };
+    S.orders = norm.map(r=>({
+      id:    String(r[C.id]||''),
+      rest:  String(r[C.rest]||'Sin nombre').trim(),
+      estado:String(r[C.est]||'').trim(),
+      fecha: pDate(r[C.fecha]),
+      total: pNum(r[C.tot]),
+      tipo:  String(r[C.tipo]||'').trim(),
+      pago:  String(r[C.pago]||'').trim(),
+      dom:   String(r[C.dom]||'').trim(),
+      lat:   pNum(r[C.lat]),
+      lng:   pNum(r[C.lng]),
+      desc:  pNum(r[C.desc]),
+      envio: pNum(r[C.envio]),
+    }));
+    const detN = wb.SheetNames.find(s=>s.toLowerCase().includes('detalle'));
+    if(detN){
+      const dr = XLSX.utils.sheet_to_json(wb.Sheets[detN],{defval:''});
+      const dn = dr.map(r=>{const o={};for(const k in r)o[k.trim().toUpperCase()]=r[k];return o;});
+      const dk = dn[0]?Object.keys(dn[0]):[];
+      const fd=(...opts)=>dk.find(k=>opts.some(o=>k.includes(o.toUpperCase())))||'';
+      const DC={id:fd('ID DE ORDEN','ID ORDEN','ORDER'),prod:fd('PRODUCTO','PRODUCT','ITEM'),qty:fd('CANTIDAD','QTY')};
+      S.details=dn.map(r=>({id:String(r[DC.id]||''),prod:String(r[DC.prod]||''),qty:pNum(r[DC.qty])||1}));
+    } else S.details=[];
+    const dates=S.orders.map(o=>o.fecha).filter(Boolean);
+    if(dates.length){
+      // Use UTC + mode to avoid timezone-off-by-one (e.g. Mar 1 UTC = Feb 28 in UTC-5)
+      const mc={};
+      dates.forEach(d=>{const k=`${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}`;mc[k]=(mc[k]||0)+1;});
+      S.currentPeriod=Object.entries(mc).sort((a,b)=>b[1]-a[1])[0][0];
+    } else S.currentPeriod=fname.match(/(\d{4})-(\d{2})/)?.[0]||new Date().toISOString().slice(0,7);
+    saveHistory(); populateRstSel();
+    showStatus('ok',`✅ ${S.orders.length.toLocaleString()} pedidos · ${[...new Set(S.orders.map(o=>o.rest))].length} restaurantes · ${S.currentPeriod}`);
+    renderHistCard(); showView('global');
+    // Subir a la nube para que todos los farmers vean los datos
+    saveCloudOrders().catch(e=>console.warn('saveCloudOrders:',e));
+  }catch(err){showStatus('error','Error: '+err.message);console.error(err);}
+}
+
+function pDate(v){ if(!v)return null; if(v instanceof Date)return v; if(typeof v==='number'){return new Date((v-25569)*86400000);} const d=new Date(v); return isNaN(d)?null:d; }
+function pNum(v){ if(v===''||v==null)return 0; if(typeof v==='number')return v; return parseFloat(String(v).replace(/[^0-9.\-]/g,''))||0; }
+function showStatus(t,m){ document.getElementById('ustatus').innerHTML=`<div class="card" style="border-color:${t==='ok'?'var(--green)':'var(--red)'}">${m}</div>`; }
+
+function saveHistory(){
+  const mk=S.currentPeriod; if(!mk)return;
+  if(!HISTORY[mk])HISTORY[mk]={};
+  const rg=groupBy();
+  for(const [n,ords] of Object.entries(rg)){
+    const cob=ords.filter(isCob); const cobN=cob.length;
+    const ventas=cob.reduce((s,o)=>s+o.total,0);
+    HISTORY[mk][n]={cobrable:cobN,total:ords.length,ventas,ticket:cobN?ventas/cobN:0};
+  }
+  cloudSave('history',HISTORY);
+}
+
+function prevData(name){
+  const keys=Object.keys(HISTORY).sort(); const idx=keys.indexOf(S.currentPeriod);
+  if(idx<=0)return null; return (HISTORY[keys[idx-1]]||{})[name]||null;
+}
+
+function renderHistCard(){
+  const hc=document.getElementById('hcard'), hl=document.getElementById('hlist');
+  const keys=Object.keys(HISTORY).sort().reverse();
+  if(!keys.length){hc.style.display='none';return;}
+  hc.style.display='block';
+  hl.innerHTML=keys.map(k=>{
+    const rn=Object.keys(HISTORY[k]).length;
+    const tot=Object.values(HISTORY[k]).reduce((s,v)=>s+v.cobrable,0);
+    const act=k===S.currentPeriod;
+    return `<div class="sr"><span class="sl">${k}${act?' <span class="badge bg">activo</span>':''}</span><span class="sv">${rn} rest · ${tot.toLocaleString()} cob.</span></div>`;
+  }).join('');
+}
+
+// ═══════════════════ HISTÓRICO VIEW ═══════════════════
+function showHistorico(){
+  const months=Object.keys(HISTORY).sort();
+  const sub=document.getElementById('hist-sub');
+  const nodata=document.getElementById('hist-nodata');
+  const content=document.getElementById('hist-content');
+  if(!months.length){
+    nodata.style.display='block'; content.style.display='none';
+    sub.textContent='Sin datos históricos'; return;
+  }
+  nodata.style.display='none'; content.style.display='block';
+  const totalRests=[...new Set(months.flatMap(m=>Object.keys(HISTORY[m])))].length;
+  sub.textContent=`${months.length} mes${months.length>1?'es':''} disponibles · ${totalRests} restaurantes en historial`;
+
+  const mlabels=months.map(m=>{const d=mDate(m);return d.toLocaleString('es-CO',{month:'short',year:'2-digit'});});
+  const totCob=months.map(m=>Object.values(HISTORY[m]).reduce((s,v)=>s+v.cobrable,0));
+  const totVen=months.map(m=>Object.values(HISTORY[m]).reduce((s,v)=>s+v.ventas,0));
+  const totTck=months.map((m,i)=>totCob[i]?totVen[i]/totCob[i]:0);
+
+  const lineOpts=(color)=>({fill:true,tension:0.4,pointRadius:5,pointBackgroundColor:color,borderColor:color,backgroundColor:color.replace(')',', .12)').replace('rgb','rgba')});
+
+  mkChart('ch-hist-cob','line',mlabels,[{label:'Cobrables',data:totCob,...lineOpts('#FF4057')}],{tlabel:c=>fmt(c.raw)});
+  mkChart('ch-hist-ven','line',mlabels,[{label:'Ventas',data:totVen,...lineOpts('#A4A4FF')}],{tlabel:c=>fmtCOP(c.raw)});
+  mkChart('ch-hist-tck','line',mlabels,[{label:'Ticket promedio',data:totTck,...lineOpts('#F1C40F')}],{tlabel:c=>fmtCOP(c.raw)});
+
+  // Comparador selects
+  const selA=document.getElementById('cmp-a'), selB=document.getElementById('cmp-b');
+  const opts=months.map((m,i)=>`<option value="${m}">${mlabels[i]} — ${m}</option>`).join('');
+  selA.innerHTML=opts; selB.innerHTML=opts;
+  if(months.length>=2) selA.value=months[months.length-2];
+  selB.value=months[months.length-1];
+  renderComparador();
+
+  // Restaurant selector
+  const allRests=[...new Set(months.flatMap(m=>Object.keys(HISTORY[m])))].sort();
+  const rsel=document.getElementById('hist-rest-sel');
+  rsel.innerHTML='<option value="">— Selecciona un restaurante —</option>'+allRests.map(r=>`<option value="${r}">${r}</option>`).join('');
+
+  renderHistRanking(months,mlabels,allRests);
+  renderGrowthDecomp(months,mlabels);
+}
+
+function renderGrowthDecomp(months,mlabels){
+  const el=document.getElementById('growth-decomp');
+  if(!el)return;
+  if(months.length<2){el.innerHTML='<div class="nodata" style="padding:16px">Necesitas al menos 2 meses para ver la descomposición del crecimiento.</div>';return;}
+  const rows=[];
+  for(let i=1;i<months.length;i++){
+    const mA=months[i-1], mB=months[i];
+    const dA=HISTORY[mA]||{}, dB=HISTORY[mB]||{};
+    const restsA=new Set(Object.keys(dA).filter(r=>dA[r].cobrable>0));
+    const restsB=new Set(Object.keys(dB).filter(r=>dB[r].cobrable>0));
+    const shared=[...restsA].filter(r=>restsB.has(r));
+    const newRests=[...restsB].filter(r=>!restsA.has(r));
+    const lostRests=[...restsA].filter(r=>!restsB.has(r));
+    const totalA=Object.values(dA).reduce((s,v)=>s+v.cobrable,0);
+    const totalB=Object.values(dB).reduce((s,v)=>s+v.cobrable,0);
+    const ordSharedA=shared.reduce((s,r)=>s+(dA[r]?.cobrable||0),0);
+    const ordSharedB=shared.reduce((s,r)=>s+(dB[r]?.cobrable||0),0);
+    const ordNew=newRests.reduce((s,r)=>s+(dB[r]?.cobrable||0),0);
+    const ordLost=lostRests.reduce((s,r)=>s+(dA[r]?.cobrable||0),0);
+    const deltaTotal=totalB-totalA;
+    const deltaSameRests=ordSharedB-ordSharedA;
+    const deltaNewRests=ordNew;
+    const deltaLostRests=-ordLost;
+    const labelA=mlabels[i-1], labelB=mlabels[i];
+    const pctChange=totalA?((deltaTotal/totalA)*100):0;
+    rows.push({labelA,labelB,totalA,totalB,deltaTotal,deltaSameRests,deltaNewRests,deltaLostRests,
+      restsA:restsA.size,restsB:restsB.size,newRests:newRests.length,lostRests:lostRests.length,shared:shared.length,pctChange});
+  }
+  const latest=rows[rows.length-1];
+  const absMax=Math.max(Math.abs(latest.deltaSameRests),Math.abs(latest.deltaNewRests),Math.abs(latest.deltaLostRests),1);
+  function bar(val,color,maxVal){
+    const w=Math.abs(val/maxVal*100).toFixed(1);
+    const sign=val>=0?'+':'';
+    return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+      <div style="flex:1;background:var(--surface2);border-radius:4px;height:20px;overflow:hidden">
+        <div style="width:${w}%;height:100%;background:${color};border-radius:4px;transition:width .3s"></div>
+      </div>
+      <span style="font-size:12px;font-weight:700;color:${color};min-width:70px;text-align:right">${sign}${fmt(val)} ped.</span>
+    </div>`;
+  }
+  el.innerHTML=`
+  <div class="g2" style="gap:14px">
+    <div>
+      <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:12px">Último período: ${latest.labelA} → ${latest.labelB}</div>
+      <div style="font-size:22px;font-weight:800;color:${latest.deltaTotal>=0?'#2ECC71':'#E74C3C'};margin-bottom:4px">${latest.deltaTotal>=0?'+':''}${fmt(latest.deltaTotal)} pedidos (${latest.pctChange>=0?'+':''}${latest.pctChange.toFixed(1)}%)</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:16px">${fmt(latest.totalA)} → ${fmt(latest.totalB)} pedidos cobrables</div>
+      <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Descomposición del cambio</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:4px">📈 Más/menos pedidos (restaurantes existentes)</div>
+      ${bar(latest.deltaSameRests,'#A4A4FF',absMax)}
+      <div style="font-size:12px;color:var(--text2);margin-bottom:4px">🆕 Nuevos restaurantes (${latest.newRests})</div>
+      ${bar(latest.deltaNewRests,'#1A8A50',absMax)}
+      <div style="font-size:12px;color:var(--text2);margin-bottom:4px">❌ Restaurantes perdidos (${latest.lostRests})</div>
+      ${bar(latest.deltaLostRests,'#C0392B',absMax)}
+    </div>
+    <div>
+      <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:12px">Evolución mensual de restaurantes activos</div>
+      <div class="tw"><table><thead><tr><th>Período</th><th>Antes</th><th>Después</th><th>Nuevos</th><th>Perdidos</th><th>Δ Pedidos</th></tr></thead>
+      <tbody>${rows.map(row=>`<tr>
+        <td class="ts">${row.labelA}→${row.labelB}</td>
+        <td>${row.restsA}</td>
+        <td>${row.restsB}</td>
+        <td style="color:#2ECC71;font-weight:700">${row.newRests>0?'+'+row.newRests:'—'}</td>
+        <td style="color:#E74C3C;font-weight:700">${row.lostRests>0?'-'+row.lostRests:'—'}</td>
+        <td style="font-weight:700;color:${row.deltaTotal>=0?'#1A8A50':'#C0392B'}">${row.deltaTotal>=0?'+':''}${fmt(row.deltaTotal)}</td>
+      </tr>`).join('')}</tbody></table></div>
+    </div>
+  </div>`;
+}
+
+function renderComparador(){
+  const selA=document.getElementById('cmp-a'), selB=document.getElementById('cmp-b');
+  if(!selA||!selB)return;
+  const mA=selA.value, mB=selB.value;
+  if(!mA||!mB){document.getElementById('cmp-table').innerHTML='';return;}
+  const dA=HISTORY[mA]||{}, dB=HISTORY[mB]||{};
+  const agg=d=>{const v=Object.values(d);const cob=v.reduce((s,x)=>s+x.cobrable,0);const ven=v.reduce((s,x)=>s+x.ventas,0);return{cob,ven,tick:cob?ven/cob:0,rests:v.length};};
+  const a=agg(dA), b=agg(dB);
+  const mNameA=mDate(mA).toLocaleString('es-CO',{month:'long',year:'numeric'});
+  const mNameB=mDate(mB).toLocaleString('es-CO',{month:'long',year:'numeric'});
+  const row=(label,va,vb,f)=>{
+    const diff=vb-va, pct=va?((diff/va)*100):null;
+    const cls=diff>=0?'tg':'tr', arrow=diff>=0?'▲':'▼';
+    return `<tr><td class="sl">${label}</td><td class="sv">${f(va)}</td><td class="sv bold">${f(vb)}</td><td class="sv ${cls}" style="font-weight:700">${pct!==null?`${arrow} ${Math.abs(pct).toFixed(1)}%`:'—'}</td></tr>`;
+  };
+  document.getElementById('cmp-table').innerHTML=`
+    <div class="tw"><table>
+      <thead><tr><th>Métrica</th><th class="tm">${mNameA}</th><th>${mNameB}</th><th>Variación</th></tr></thead>
+      <tbody>
+        ${row('Pedidos cobrables',a.cob,b.cob,fmt)}
+        ${row('Ventas totales',a.ven,b.ven,fmtCOP)}
+        ${row('Ticket promedio',a.tick,b.tick,fmtCOP)}
+        ${row('Restaurantes activos',a.rests,b.rests,v=>fmt(v))}
+      </tbody>
+    </table></div>`;
+}
+
+function renderRestEvol(){
+  const name=document.getElementById('hist-rest-sel').value;
+  const kpis=document.getElementById('hist-rest-kpis');
+  if(!name){kpis.innerHTML='';return;}
+  const months=Object.keys(HISTORY).sort();
+  if(!months.length)return;
+  const mlabels=months.map(m=>{const d=mDate(m);return d.toLocaleString('es-CO',{month:'short',year:'2-digit'});});
+  const cobData=months.map(m=>(HISTORY[m][name]||{}).cobrable||0);
+  const venData=months.map(m=>(HISTORY[m][name]||{}).ventas||0);
+  const tckData=months.map((m,i)=>cobData[i]?venData[i]/cobData[i]:0);
+
+  mkChart('ch-hist-rest','line',mlabels,[
+    {label:'Pedidos cobrables',data:cobData,borderColor:'#FF4057',backgroundColor:'rgba(255,64,87,.08)',fill:true,tension:0.4,pointRadius:5,pointBackgroundColor:'#FF4057',yAxisID:'y'},
+    {label:'Ventas',data:venData,borderColor:'#9B97C8',backgroundColor:'transparent',fill:false,tension:0.4,pointRadius:5,pointBackgroundColor:'#9B97C8',borderDash:[4,3],yAxisID:'y1'}
+  ],{
+    tlabel:c=>c.datasetIndex===0?fmt(c.raw):fmtCOP(c.raw),
+    extra:{scales:{
+      x:{ticks:{color:'#C4D2E0',font:{size:11}},grid:{color:'rgba(7,28,45,.08)'}},
+      y:{ticks:{color:'#FF4057',font:{size:11}},grid:{color:'rgba(7,28,45,.08)'},position:'left',title:{display:true,text:'Pedidos',color:'#FF4057',font:{size:10}}},
+      y1:{ticks:{color:'#9B97C8',font:{size:11},callback:v=>fmtCOP(v)},grid:{display:false},position:'right',title:{display:true,text:'Ventas',color:'#9B97C8',font:{size:10}}}
+    }}
+  });
+
+  // Mini KPI badges for best/worst month
+  const bestIdx=cobData.indexOf(Math.max(...cobData));
+  const worstIdx=cobData.indexOf(Math.min(...cobData.filter(v=>v>0)));
+  const last=cobData[cobData.length-1], prev2=cobData.length>=2?cobData[cobData.length-2]:null;
+  const trend=prev2&&prev2>0?((last-prev2)/prev2*100):null;
+  kpis.innerHTML=`
+    <div class="kpi" style="flex:1;min-width:120px"><div class="kl">Mejor mes</div><div class="kv tg" style="font-size:16px">${mlabels[bestIdx]}</div><div class="ks">${fmt(cobData[bestIdx])} pedidos</div></div>
+    <div class="kpi" style="flex:1;min-width:120px"><div class="kl">Promedio mensual</div><div class="kv" style="font-size:16px">${fmt(Math.round(cobData.reduce((s,v)=>s+v,0)/cobData.filter(v=>v>0).length||1))}</div><div class="ks">pedidos/mes</div></div>
+    <div class="kpi" style="flex:1;min-width:120px"><div class="kl">Tendencia reciente</div><div class="kv ${trend>=0?'tg':'tr'}" style="font-size:16px">${trend!==null?`${trend>=0?'▲':'▼'} ${Math.abs(trend).toFixed(0)}%`:'—'}</div><div class="ks">vs mes anterior</div></div>
+    <div class="kpi" style="flex:1;min-width:120px"><div class="kl">Meses en plataforma</div><div class="kv" style="font-size:16px">${cobData.filter(v=>v>0).length}</div><div class="ks">de ${months.length} disponibles</div></div>`;
+}
+
+let _histRankSort='last';
+function renderHistRanking(months,mlabels,allRests){
+  const el=document.getElementById('hist-ranking');
+  if(months.length<1){el.innerHTML='<div class="nodata" style="padding:16px">Carga al menos 1 mes de datos</div>';return;}
+  const lastM=months[months.length-1];
+  const prevM=months.length>=2?months[months.length-2]:null;
+  const firstM=months[0];
+  const allData=allRests.map(r=>{
+    const last=(HISTORY[lastM]||{})[r]||{cobrable:0,ventas:0};
+    const prev=prevM?(HISTORY[prevM]||{})[r]||{cobrable:0,ventas:0}:null;
+    const first=(HISTORY[firstM]||{})[r]||{cobrable:0,ventas:0};
+    const allMonths=months.map(m=>(HISTORY[m]||{})[r]?.cobrable||0);
+    const isNew=!first.cobrable&&last.cobrable>0;
+    const trend=first.cobrable?((last.cobrable-first.cobrable)/first.cobrable*100):null;
+    const momDelta=prev&&prev.cobrable?last.cobrable-prev.cobrable:null;
+    const momPct=prev&&prev.cobrable?((last.cobrable-prev.cobrable)/prev.cobrable*100):null;
+    return {r,last,prev,first,trend,isNew,allMonths,momDelta,momPct};
+  });
+
+  function sortData(mode){
+    if(mode==='growth') return [...allData].filter(d=>d.momPct!==null).sort((a,b)=>b.momPct-a.momPct);
+    if(mode==='decline') return [...allData].filter(d=>d.momPct!==null).sort((a,b)=>a.momPct-b.momPct);
+    return [...allData].sort((a,b)=>b.last.cobrable-a.last.cobrable);
+  }
+
+  const badge=({trend,isNew})=>{
+    if(isNew)return`<span class="badge" style="background:rgba(164,164,255,.2);color:#5050C0;font-size:10px">✨ Nuevo</span>`;
+    if(trend===null)return`<span class="badge bgr txs">Sin hist.</span>`;
+    if(trend>=30)return`<span class="badge" style="background:rgba(46,204,113,.2);color:#2ECC71;font-size:10px">🚀 +${trend.toFixed(0)}%</span>`;
+    if(trend>=5)return`<span class="badge" style="background:rgba(46,204,113,.15);color:#2ECC71;font-size:10px">▲ +${trend.toFixed(0)}%</span>`;
+    if(trend>=-5)return`<span class="badge bg txs">≈ Estable</span>`;
+    return`<span class="badge" style="background:rgba(231,76,60,.15);color:#E74C3C;font-size:10px">▼ ${trend.toFixed(0)}%</span>`;
+  };
+
+  const momBadge=({momPct,momDelta})=>{
+    if(momDelta===null) return '—';
+    if(momDelta>0) return`<span style="font-size:11px;color:#1A8A50;font-weight:700">▲ +${fmt(momDelta)} (+${momPct.toFixed(0)}%)</span>`;
+    if(momDelta<0) return`<span style="font-size:11px;color:#C0392B;font-weight:700">▼ ${fmt(momDelta)} (${momPct.toFixed(0)}%)</span>`;
+    return`<span style="font-size:11px;color:var(--text3)">≈ igual</span>`;
+  };
+
+  const sparkline=allMonths=>{
+    const mx=Math.max(...allMonths,1);
+    const w=60, h=24;
+    const pts=allMonths.map((v,i)=>`${Math.round(i*(w/(allMonths.length-1||1))||0)},${Math.round(h-(v/mx)*(h-4)+2)}`).join(' ');
+    const color=allMonths[allMonths.length-1]>=(allMonths[0]||0)?'#1A8A50':'#C0392B';
+    return `<svg width="${w}" height="${h}" style="overflow:visible"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
+  };
+
+  function renderTable(mode){
+    _histRankSort=mode;
+    const rankData=sortData(mode).slice(0,20);
+    const lastLabel=mlabels[mlabels.length-1];
+    const prevLabel=prevM?mlabels[months.indexOf(prevM)]:'';
+    const firstLabel=mlabels[0];
+    const btnStyle=(m)=>`style="padding:6px 14px;border-radius:6px;border:1px solid var(--border);cursor:pointer;font-family:inherit;font-size:12px;font-weight:600;transition:all .15s;${m===mode?'background:var(--pink);color:#fff;':'background:var(--surface2);color:var(--text2);'}"`;
+    el.innerHTML=`
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
+      <span style="font-size:12px;color:var(--text2);font-weight:600">Ordenar por:</span>
+      <button ${btnStyle('last')} onclick="window.renderHistTableSort('last')">🏆 Más pedidos</button>
+      <button ${btnStyle('growth')} onclick="window.renderHistTableSort('growth')">📈 Mayor crecimiento</button>
+      <button ${btnStyle('decline')} onclick="window.renderHistTableSort('decline')">📉 Mayor caída</button>
+    </div>
+    <div class="tw" style="overflow-x:auto"><table>
+    <thead><tr><th>#</th><th>Restaurante</th><th class="tm">${firstLabel}</th><th>${lastLabel}</th>${prevLabel?'<th>Últ. cambio</th>':''}<th>Tendencia</th>${months.length>1?'<th>Evolución</th>':''}</tr></thead>
+    <tbody>${rankData.map(({r,last,first,allMonths,trend,isNew,momPct,momDelta},i)=>`
+      <tr style="cursor:pointer" onclick="document.getElementById('hist-rest-sel').value='${esc(r)}';renderRestEvol();document.getElementById('hist-rest-sel').scrollIntoView({behavior:'smooth'})">
+        <td class="tm bold">${i+1}</td>
+        <td><span class="bold ts">${r}</span></td>
+        <td class="tm">${fmt(first.cobrable)}</td>
+        <td class="bold tp">${fmt(last.cobrable)}</td>
+        ${prevLabel?`<td>${momBadge({momPct,momDelta})}</td>`:''}
+        <td>${badge({trend,isNew})}</td>
+        ${months.length>1?`<td>${sparkline(allMonths)}</td>`:''}
+      </tr>`).join('')}
+    </tbody></table></div>`;
+  }
+  window._histMonths=months; window._histMlabels=mlabels; window._histAllRests=allRests;
+  window.renderHistTableSort=renderTable;
+  renderTable(_histRankSort);
+}
+
+function populateRstSel(){
+  const sel=document.getElementById('rst-sel');
+  const names=[...new Set(S.orders.map(o=>o.rest))].sort();
+  sel.innerHTML='<option value="">— Selecciona un restaurante —</option>'+names.map(n=>`<option value="${n}">${n}</option>`).join('');
+  // Populate checklist KAM filter
+  const cf=document.getElementById('ck-filter');
+  const farmers=[...new Set(Object.values(FARMERS))].filter(Boolean).sort();
+  cf.innerHTML='<option value="">Todos los restaurantes</option>'+farmers.map(f=>`<option value="${f}">${f}</option>`).join('');
+  // Populate farmer download selector
+  const dlSel=document.getElementById('dl-farmer-sel');
+  if(dlSel) dlSel.innerHTML='<option value="">Todos los restaurantes</option>'+farmers.map(f=>`<option value="${f}">👤 ${f}</option>`).join('');
+}
+
+// ═══════════════════ HELPERS ═══════════════════
+function groupBy(){ const m={}; S.orders.forEach(o=>{if(!m[o.rest])m[o.rest]=[];m[o.rest].push(o);}); return m; }
+function fmt(n){ return (n||0).toLocaleString('es-CO',{maximumFractionDigits:0}); }
+// Parse "YYYY-MM" → local Date (avoids UTC-midnight timezone off-by-one bug)
+function mDate(ym){ const [y,m]=ym.split('-').map(Number); return new Date(y,m-1,1); }
+function fmtCOP(n){ return '$'+fmt(n); }
+function fmtPct(n,tot){ return tot?((n/tot)*100).toFixed(1)+'%':'0%'; }
+function destroyChart(id){ if(charts[id]){charts[id].destroy();delete charts[id];} }
+function scoreColor(s){ if(s>=90)return'#7070D0'; if(s>=70)return'#1A8A50'; if(s>=50)return'#A07A00'; return'#C0392B'; }
+function stateBadge(st){ const m={Activo:'bg',Construcción:'by','Sin capacitar':'br'}; return `<span class="badge ${m[st]||'bgr'}">${st}</span>`; }
+
+function mkChart(id,type,labels,datasets,opts={}){
+  destroyChart(id);
+  const ctx=document.getElementById(id); if(!ctx)return;
+  const isBar=type==='bar'||type==='line';
+  charts[id]=new Chart(ctx,{
+    type,
+    data:{labels,datasets},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{labels:{color:'#C4D2E0',font:{family:"'Plus Jakarta Sans',sans-serif",size:11}},...(opts.legendOpts||{})},
+        tooltip:{callbacks:{label:c=>opts.tlabel?opts.tlabel(c):c.formattedValue}}
+      },
+      scales:isBar?{
+        x:{ticks:{color:'#C4D2E0',font:{size:11},maxRotation:45},grid:{color:'rgba(7,28,45,.08)'},...(opts.xOpts||{})},
+        y:{ticks:{color:'#C4D2E0',font:{size:11}},grid:{color:'rgba(7,28,45,.08)'},...(opts.yOpts||{})}
+      }:{},
+      ...(opts.extra||{})
+    }
+  });
+}
+
+// ═══════════════════ GLOBAL VIEW ═══════════════════
+function renderGlobal(){
+  if(!S.orders.length)return;
+  const ords=S.orders, cobs=ords.filter(isCob);
+  const total=ords.length, cobN=cobs.length;
+  const ventas=cobs.reduce((s,o)=>s+o.total,0), ticket=cobN?ventas/cobN:0;
+  const rests=[...new Set(ords.map(o=>o.rest))].length;
+  const prevKeys=Object.keys(HISTORY).sort(), curIdx=prevKeys.indexOf(S.currentPeriod);
+  let prevCob=0,prevVen=0;
+  if(curIdx>0){const p=HISTORY[prevKeys[curIdx-1]];prevCob=Object.values(p).reduce((s,v)=>s+v.cobrable,0);prevVen=Object.values(p).reduce((s,v)=>s+v.ventas,0);}
+  const delta=(cur,prev)=>prev?`<div class="ks ${cur>=prev?'up':'dn'}">${cur>=prev?'▲':'▼'} ${Math.abs(((cur-prev)/prev*100)).toFixed(1)}% vs ant.</div>`:''
+  document.getElementById('g-title').textContent=`Dashboard Global — ${S.currentPeriod}`;
+  document.getElementById('g-sub').textContent=`${fmt(total)} pedidos · ${rests} restaurantes`;
+  document.getElementById('g-tot').textContent=fmt(total);
+  document.getElementById('g-cob').textContent=fmt(cobN);
+  document.getElementById('g-ven').textContent=fmtCOP(ventas);
+  document.getElementById('g-tck').textContent=fmtCOP(ticket);
+  document.getElementById('g-rst').textContent=rests;
+  document.getElementById('g-cob-d').outerHTML=`<div class="ks" id="g-cob-d">${delta(cobN,prevCob)}</div>`;
+  document.getElementById('g-ven-d').outerHTML=`<div class="ks" id="g-ven-d">${delta(ventas,prevVen)}</div>`;
+  // Daily chart
+  const bd={};
+  ords.forEach(o=>{ if(!o.fecha)return; const k=o.fecha.toISOString().slice(0,10); if(!bd[k])bd[k]={t:0,c:0}; bd[k].t++; if(isCob(o))bd[k].c++; });
+  const days=Object.keys(bd).sort();
+  mkChart('ch-daily','bar',days,[
+    {label:'Cobrables',data:days.map(d=>bd[d].c),backgroundColor:'rgba(255,52,100,.75)',borderRadius:3},
+    {label:'No cob.',data:days.map(d=>bd[d].t-bd[d].c),backgroundColor:'rgba(255,255,255,.07)',borderRadius:3}
+  ],{extra:{scales:{x:{stacked:true,ticks:{color:'#C4D2E0',font:{size:10},maxRotation:45},grid:{color:'rgba(7,28,45,.08)'}},y:{stacked:true,ticks:{color:'#C4D2E0',font:{size:11}},grid:{color:'rgba(7,28,45,.08)'}}}}});
+  // Top 15
+  const br={};
+  cobs.forEach(o=>{br[o.rest]=(br[o.rest]||0)+1;});
+  const top=Object.entries(br).sort((a,b)=>b[1]-a[1]).slice(0,15);
+  mkChart('ch-top15','bar',top.map(([n])=>n.length>18?n.slice(0,16)+'…':n),[
+    {label:'Cobrables',data:top.map(([,v])=>v),backgroundColor:COLORS,borderRadius:4}
+  ],{legendOpts:{display:false},extra:{indexAxis:'y',scales:{x:{ticks:{color:'#C4D2E0',font:{size:11}},grid:{color:'rgba(7,28,45,.08)'}},y:{ticks:{color:'#C4D2E0',font:{size:10}},grid:{color:'rgba(7,28,45,.08)'}}}}});
+  // Donuts
+  const be={},bt={},bp={};
+  ords.forEach(o=>{be[o.estado]=(be[o.estado]||0)+1;bt[o.tipo||'Sin tipo']=(bt[o.tipo||'Sin tipo']||0)+1;});
+  cobs.forEach(o=>{bp[o.pago||'Sin dato']=(bp[o.pago||'Sin dato']||0)+1;});
+  mkChart('ch-est','doughnut',Object.keys(be),[{data:Object.values(be),backgroundColor:COLORS}],{legendOpts:{position:'bottom',labels:{font:{size:10}}}});
+  mkChart('ch-tipo','doughnut',Object.keys(bt),[{data:Object.values(bt),backgroundColor:COLORS}],{legendOpts:{position:'bottom',labels:{font:{size:10}}}});
+  mkChart('ch-pago','doughnut',Object.keys(bp),[{data:Object.values(bp),backgroundColor:COLORS}],{legendOpts:{position:'bottom',labels:{font:{size:10}}}});
+  // Distribución por Tier
+  const rg2=groupBy();
+  const tierCounts={1:0,2:0,3:0,4:0}, tierDisc={1:0,2:0,3:0,4:0};
+  Object.entries(rg2).forEach(([name,ords])=>{
+    const c=ords.filter(isCob).length, t=getTier(c).tier;
+    tierCounts[t]++;
+    if(has100Score(name)) tierDisc[t]++;
+  });
+  const tColors={1:'var(--t1)',2:'var(--t2)',3:'var(--t3)',4:'var(--t4)'};
+  const tRanges={1:'< 500 ped.',2:'500–999',3:'1 000–4 999',4:'5 000+'};
+  const tierCard=document.getElementById('tier-dist-card');
+  tierCard.style.display='';
+  document.getElementById('tier-dist-content').innerHTML=`
+    <div class="g4">${[1,2,3,4].map(t=>`
+      <div style="background:var(--surface2);border-radius:10px;padding:16px;border-left:3px solid ${tColors[t]}">
+        <div class="txs tm" style="margin-bottom:4px">Tier ${t} <span style="opacity:.6">(${tRanges[t]})</span></div>
+        <div style="font-size:30px;font-weight:800;color:${tColors[t]};line-height:1">${tierCounts[t]}</div>
+        <div class="txs tm" style="margin-top:3px">restaurante${tierCounts[t]!==1?'s':''}</div>
+        ${tierDisc[t]?`<div class="txs" style="margin-top:6px;color:#2ECC71">⭐ ${tierDisc[t]} con 50% dto.</div>`:''}
+      </div>`).join('')}
+    </div>`;
+  renderGlobalTable();
+}
+
+function getRestScore(name){ const d=CK_DATA[name]; if(!d||!d.items)return 0; return SCORE_ITEMS.reduce((s,i)=>s+(d.items[i.k]?i.pts:0),0); }
+function getRestState(name, ords){
+  const d=CK_DATA[name];
+  const hasCap=d&&d.fecha_cap;
+  const hasOrders=ords&&ords.filter(isCob).length>0;
+  if(hasOrders) return 'Activo';
+  if(hasCap) return 'Construcción';
+  return 'Sin capacitar';
+}
+
+function renderGlobalTable(){
+  const rg=groupBy();
+  tableData=Object.entries(rg).map(([name,ords])=>{
+    const cob=ords.filter(isCob), cobN=cob.length;
+    const ventas=cob.reduce((s,o)=>s+o.total,0);
+    const canc=ords.filter(o=>o.estado==='Cancelado').length;
+    const rech=ords.filter(o=>o.estado==='Rechazado').length;
+    const ticket=cobN?ventas/cobN:0, t=getTier(cobN);
+    const risk=ords.length===0?'h':canc/ords.length>.3?'h':cobN<10?'m':'l';
+    const score=getRestScore(name), state=getRestState(name,ords);
+    return {name,farmer:FARMERS[name]||'—',total:ords.length,cobN,canc,rech,ventas,ticket,t,risk,score,state};
+  });
+  sortAndRender();
+}
+
+function sortT(col){ if(sortCol===col)sortAsc=!sortAsc; else{sortCol=col;sortAsc=false;} sortAndRender(); }
+function filterTable(q){ filterQ=q; sortAndRender(); }
+
+function sortAndRender(){
+  let data=[...tableData];
+  if(filterQ) data=data.filter(d=>d.name.toLowerCase().includes(filterQ.toLowerCase())||d.farmer.toLowerCase().includes(filterQ.toLowerCase()));
+  data.sort((a,b)=>{
+    const vals=[a.name,a.farmer,a.total,a.cobN,a.canc,a.rech,a.ventas,a.ticket,a.t.tier,a.score,a.state];
+    const bv=[b.name,b.farmer,b.total,b.cobN,b.canc,b.rech,b.ventas,b.ticket,b.t.tier,b.score,b.state];
+    const av2=vals[sortCol],bv2=bv[sortCol];
+    if(typeof av2==='string')return sortAsc?av2.localeCompare(bv2):bv2.localeCompare(av2);
+    return sortAsc?av2-bv2:bv2-av2;
+  });
+  const rdot={l:'rl',m:'rm',h:'rh2'};
+  document.getElementById('g-tbody').innerHTML=data.map(d=>`<tr>
+    <td class="bold">${d.name}</td>
+    <td>${d.farmer}</td>
+    <td>${fmt(d.total)}</td>
+    <td class="tp bold">${fmt(d.cobN)}</td>
+    <td class="ty">${fmt(d.canc)}</td>
+    <td class="tr">${fmt(d.rech)}</td>
+    <td>${fmtCOP(d.ventas)}</td>
+    <td>${fmtCOP(d.ticket)}</td>
+    <td><span class="badge ${d.t.cls}">${d.t.label}</span></td>
+    <td><span class="bold" style="color:${scoreColor(d.score)}">${d.score}</span><span class="txs tm">/100</span></td>
+    <td>${stateBadge(d.state)}</td>
+    <td><button class="btn btn-s btn-sm" onclick="drillFromG('${esc(d.name)}')">Ver →</button></td>
+  </tr>`).join('');
+}
+
+function esc(s){ return s.replace(/'/g,"\\'"); }
+function drillFromG(name){ document.getElementById('rst-sel').value=name; drillRest(name); showView('restaurantes'); }
+
+// All known restaurant names (from orders + manual)
+function allRestNames(){
+  const fromOrders = [...new Set(S.orders.map(o=>o.rest))];
+  const fromManual = Object.keys(MANUAL_RESTS);
+  return [...new Set([...fromOrders, ...fromManual])].sort();
+}
+
+// Tier progress helpers
+const TIER_RANGES = [[0,500],[500,1000],[1000,5000],[5000,Infinity]];
+const TIER_FEES_LIST = [550,525,500,475];
+function tierProgress(cobN){
+  const t = getTier(cobN);
+  const [tStart,tEnd] = TIER_RANGES[t.tier-1];
+  const barPct = tEnd===Infinity ? 100 : Math.min(100,((cobN-tStart)/(tEnd-tStart))*100);
+  const toNext = tEnd===Infinity ? 0 : tEnd-cobN;
+  const feeNext = t.tier<4 ? TIER_FEES_LIST[t.tier] : null;
+  const feeSaving = feeNext!==null ? t.fee-feeNext : 0;
+  return {t, barPct, toNext, feeNext, feeSaving, maxTier: tEnd===Infinity};
+}
+
+// Personalized recommendations for client report
+function getReportRecommendations({cobN, canc, rech, ords, prev, score, tp, pendingItems, ticket}){
+  const recs=[];
+  const totalOrd=ords.length;
+  const cancRate=totalOrd?(canc+rech)/totalOrd:0;
+
+  // 1. Very close to next tier
+  if(!tp.maxTier && tp.toNext>0 && tp.toNext<=80){
+    recs.push({icon:'🚀',color:'#2ECC71',
+      title:`¡Solo te faltan ${tp.toNext} pedidos para subir de nivel!`,
+      body:`Alcanzar el siguiente tier te ahorraría <strong>${tp.feeSaving} COP por pedido</strong>. Con tu volumen actual eso son <strong>${fmtCOP(cobN*tp.feeSaving)} extra</strong> de ahorro al mes.`,
+      action:'Activa una campaña de difusión por WhatsApp o publica una promoción en redes esta semana.'});
+  }
+
+  // 2. Pending high-value checklist items — cupon primer pedido
+  if(pendingItems.find(i=>i.k==='cupon1')){
+    recs.push({icon:'🎟️',color:'#FF4057',
+      title:'Activa un cupón de primer pedido',
+      body:'Los cupones de bienvenida pueden aumentar la conversión de nuevos clientes hasta un <strong>40%</strong>. Todavía no tienes uno activo en tu canal.',
+      action:'Pídele a tu Farmer que configure un descuento de primer pedido en tu perfil Menüpp.'});
+  }
+
+  // 3. WhatsApp diffusion pending + enough volume
+  if(pendingItems.find(i=>i.k==='difusion') && cobN>=30){
+    recs.push({icon:'📣',color:'#3498DB',
+      title:'Activa tu base de datos de clientes por WhatsApp',
+      body:`Ya tienes <strong>${fmt(cobN)} pedidos este mes</strong>. Una difusión de WhatsApp dirigida a tus clientes frecuentes puede generar un pico de ventas inmediato. El valor es desde <strong>$150 pesos por mensaje enviado</strong>, con un retorno potencial muy alto si la campaña tiene una buena oferta.`,
+      action:'Coordina con tu Farmer una difusión de WhatsApp con promoción exclusiva esta semana. Definen juntos el mensaje, la lista de contactos y la fecha de envío.'});
+  }
+
+  // 4. High cancellation rate
+  if(cancRate>0.18){
+    recs.push({icon:'⚠️',color:'#F1C40F',
+      title:`Tasa de cancelación del ${(cancRate*100).toFixed(0)}% — hay oportunidad de mejora`,
+      body:`${fmt(canc+rech)} pedidos no se completaron este mes. Cada uno es ingreso que no llegó a tu bolsillo y afecta el ranking de tu restaurante.`,
+      action:'Revisa horarios de atención, tiempos de preparación y disponibilidad de productos en tu menú.'});
+  }
+
+  // 5. Declining trend vs previous month
+  if(prev && cobN < prev.cobrable*0.88){
+    const pct=((1-cobN/prev.cobrable)*100).toFixed(0);
+    recs.push({icon:'📉',color:'#F1C40F',
+      title:`Tus pedidos bajaron un ${pct}% vs el mes pasado`,
+      body:`El mes pasado tuviste <strong>${fmt(prev.cobrable)} pedidos</strong> y este mes <strong>${fmt(cobN)}</strong>. Recuperar esa diferencia tiene un impacto directo en tus ventas.`,
+      action:'Reactiva clientes inactivos con una promoción puntual. Un mensaje en estados de WhatsApp suele funcionar muy bien.'});
+  }
+
+  // 6. Low score with actionable items
+  if(score<60 && pendingItems.length>=3){
+    const top=pendingItems.sort((a,b)=>b.pts-a.pts).slice(0,3);
+    recs.push({icon:'⭐',color:'#9B97C8',
+      title:`Mejora tu Score: ${score}/100 — tienes ${pendingItems.reduce((s,i)=>s+i.pts,0)} puntos por activar`,
+      body:`Completar <strong>${top.map(i=>i.l).join(', ')}</strong> te daría +${top.reduce((s,i)=>s+i.pts,0)} puntos. Un score alto desbloquea mejores estrategias de crecimiento.`,
+      action:'Agenda una sesión con tu Farmer para implementar estas prácticas este mes.'});
+  }
+
+  // 7. Upsell/cross-sell pending + low ticket
+  if(pendingItems.find(i=>i.k==='upsell'||i.k==='crosssell') && ticket<45000){
+    recs.push({icon:'🛒',color:'#FF8C42',
+      title:'Aumenta tu ticket promedio con estrategias de Up-Selling',
+      body:`Tu ticket promedio actual es <strong>${fmtCOP(ticket)}</strong>. Con un buen up-selling puedes aumentarlo entre un 15% y 25% sin necesitar más pedidos.`,
+      action:'Agrega combos, complementos o adiciones recomendadas en tus productos más vendidos.'});
+  }
+
+  // 8. Google Maps not configured
+  if(pendingItems.find(i=>i.k==='gmaps')){
+    recs.push({icon:'📍',color:'#3498DB',
+      title:'Aparece en Google cuando te buscan',
+      body:'Tener tu restaurante bien configurado en Google Maps genera visibilidad orgánica gratuita. Los clientes buscan "comida cerca" todos los días y tu negocio puede aparecer ahí.',
+      action:'Asegúrate de tener Google Business Profile activo, con fotos, horarios y descripción actualizados. Pídele a tu Farmer que te ayude a configurarlo.'});
+  }
+
+  return recs.slice(0,4);
+}
+
+// Risk assessment for a restaurant
+function getRisk(name){
+  const ords = S.orders.filter(o=>o.rest===name);
+  const cobN = ords.filter(isCob).length;
+  const canc = ords.filter(o=>o.estado==='Cancelado').length;
+  const d = CK_DATA[name]||{};
+  const capDate = d.fecha_cap?new Date(d.fecha_cap):null;
+  const hasOrders = cobN>0;
+  const daysSinceCap = capDate?Math.floor((Date.now()-capDate)/(1000*60*60*24)):null;
+  const alerts=[];
+  // In construction too long
+  if(capDate && !hasOrders && daysSinceCap!==null){
+    if(daysSinceCap>=14) alerts.push({level:'red',msg:`En construcción hace ${daysSinceCap} días sin activarse`,action:'Hacer seguimiento de activación urgente'});
+    else if(daysSinceCap>=7) alerts.push({level:'yellow',msg:`En construcción hace ${daysSinceCap} días`,action:'Verificar avance y próximos pasos'});
+  }
+  // Also check manual rests
+  const mr = MANUAL_RESTS[name];
+  if(mr && !hasOrders && mr.fecha_cap){
+    const daysMr = Math.floor((Date.now()-new Date(mr.fecha_cap))/(1000*60*60*24));
+    if(daysMr>=14) alerts.push({level:'red',msg:`Manual: capacitado hace ${daysMr} días sin activarse`,action:'Seguimiento urgente'});
+  }
+  // High cancellation
+  if(ords.length>=5 && canc/ords.length>0.25) alerts.push({level:'yellow',msg:`Tasa de cancelación alta: ${(canc/ords.length*100).toFixed(0)}%`,action:'Revisar proceso de operación y tiempos'});
+  // Active but low orders
+  if(hasOrders && cobN<10) alerts.push({level:'yellow',msg:`Solo ${cobN} pedidos cobrables este mes`,action:'Activar estrategia de marketing y difusión'});
+  // Active but very low score
+  const score=getRestScore(name);
+  if(hasOrders && score<40) alerts.push({level:'yellow',msg:`Score bajo: ${score}/100 siendo cliente activo`,action:'Completar checklist de buenas prácticas'});
+  return alerts;
+}
+
+// ═══════════════════ RESTAURANT DETAIL ═══════════════════
+function drillRest(name){
+  if(!name){document.getElementById('rst-detail').innerHTML='<div class="nodata">Selecciona un restaurante</div>';return;}
+  const ords=S.orders.filter(o=>o.rest===name);
+  if(!ords.length){document.getElementById('rst-detail').innerHTML='<div class="nodata">Sin datos</div>';return;}
+  const cob=ords.filter(isCob), cobN=cob.length;
+  const ventas=cob.reduce((s,o)=>s+o.total,0), ticket=cobN?ventas/cobN:0;
+  const canc=ords.filter(o=>o.estado==='Cancelado').length;
+  const desc=cob.reduce((s,o)=>s+o.desc,0), envio=cob.reduce((s,o)=>s+o.envio,0);
+  const t=getTier(cobN), fee=feeFor(name,cobN), factura=cobN*fee;
+  const ahorro=Math.max(0,ventas*0.27-factura);
+  const prev=prevData(name), farmer=FARMERS[name]||'Sin asignar';
+  const score=getRestScore(name), state=getRestState(name,ords);
+  // weeks
+  const wks={1:[],2:[],3:[],4:[],5:[]};
+  cob.forEach(o=>{ if(!o.fecha)return; const d=o.fecha.getDate(); wks[d<=7?1:d<=14?2:d<=21?3:d<=28?4:5].push(o); });
+  // products
+  const ids=new Set(cob.map(o=>o.id));
+  const prods={};
+  S.details.filter(d=>ids.has(d.id)).forEach(d=>{prods[d.prod]=(prods[d.prod]||0)+d.qty;});
+  const top10=Object.entries(prods).sort((a,b)=>b[1]-a[1]).slice(0,10);
+
+  document.getElementById('rst-detail').innerHTML=`
+  <div class="fbet mb16">
+    <div>
+      <h2 style="font-size:19px;font-weight:800">${name}</h2>
+      <p class="tm ts">Farmer: <strong>${farmer}</strong> · ${S.currentPeriod} · <span class="badge ${t.cls}">${t.label}</span> · ${stateBadge(state)}</p>
+    </div>
+    <div class="flex">
+      <button class="btn btn-s btn-sm" onclick="showView('farmers');showFTab('checklist');setTimeout(()=>{document.getElementById('ck-filter').value='${esc(FARMERS[name]||'')}';renderChecklist();},100)">✅ Checklist</button>
+      <button class="btn btn-p btn-sm" onclick="renderReport('${esc(name)}')">📄 Reporte</button>
+    </div>
+  </div>
+  <div class="g5 mb16">
+    <div class="kpi"><div class="kl">Cobrables</div><div class="kv tp">${fmt(cobN)}</div>${prev?`<div class="ks ${cobN>=prev.cobrable?'up':'dn'}">${cobN>=prev.cobrable?'▲':'▼'} ${Math.abs(((cobN-prev.cobrable)/prev.cobrable*100)).toFixed(0)}% vs ant.</div>`:''}</div>
+    <div class="kpi"><div class="kl">Ventas</div><div class="kv">${fmtCOP(ventas)}</div>${prev?`<div class="ks ${ventas>=prev.ventas?'up':'dn'}">${ventas>=prev.ventas?'▲':'▼'} ${Math.abs(((ventas-prev.ventas)/prev.ventas*100)).toFixed(0)}% vs ant.</div>`:''}</div>
+    <div class="kpi"><div class="kl">Ticket Prom.</div><div class="kv">${fmtCOP(ticket)}</div></div>
+    <div class="kpi"><div class="kl">Factura Menüpp</div><div class="kv tp">${fmtCOP(factura)}</div><div class="ks">${fmt(cobN)} × ${fmtCOP(fee)}</div></div>
+    <div class="kpi"><div class="kl">Score</div><div class="kv bold" style="color:${scoreColor(score)}">${score}<span class="txs tm">/100</span></div><div class="sbar mt8"><div class="sbar-fill" style="width:${score}%;background:${scoreColor(score)}"></div></div></div>
+  </div>
+  <div class="g2 mb16">
+    <div class="card"><div class="ct">Pedidos por día</div><div class="cw"><canvas id="ch-rd"></canvas></div></div>
+    <div class="card"><div class="ct">Semanas del mes</div>
+    <div class="wboxes">${[1,2,3,4,5].map(w=>{
+      const curr=wks[w].length;
+      const prev=w>1?wks[w-1].length:null;
+      const delta=prev!==null?curr-prev:null;
+      const pct=prev?((curr-prev)/prev*100):null;
+      const isAlert=delta!==null&&delta<0;
+      const growBadge=delta===null?'':delta>0
+        ?`<div style="font-size:10px;margin-top:3px;color:#1A8A50;font-weight:700">▲ +${delta} (${pct>=0?'+':''}${pct.toFixed(0)}%)</div>`
+        :delta<0
+        ?`<div style="font-size:10px;margin-top:3px;color:#C0392B;font-weight:700">▼ ${delta} (${pct.toFixed(0)}%)</div>`
+        :`<div style="font-size:10px;margin-top:3px;color:var(--text3)">≈ igual</div>`;
+      return `<div class="wbox" style="${isAlert?'border-color:#C0392B;background:rgba(192,57,43,.06)':''}">
+        <div class="wnum" style="${isAlert?'color:#C0392B':''}">Sem ${w}${isAlert?' ⚠️':''}</div>
+        <div class="wval" style="${isAlert?'color:#C0392B':''}">${curr}</div>
+        <div class="wsub">${fmtCOP(wks[w].reduce((s,o)=>s+o.total,0))}</div>
+        ${growBadge}
+      </div>`;
+    }).join('')}</div></div>
+  </div>
+  <div class="g3 mb16">
+    <div class="card"><div class="ct">Por Estado</div><div class="cw-sm"><canvas id="ch-re"></canvas></div></div>
+    <div class="card"><div class="ct">Método de pago</div><div class="cw-sm"><canvas id="ch-rp"></canvas></div></div>
+    <div class="card"><div class="ct">Tipo de servicio</div><div class="cw-sm"><canvas id="ch-rt"></canvas></div></div>
+  </div>
+  <div class="g2 mb16">
+    <div class="card">
+      <div class="ct">Top 10 Productos${top10.length?'':' (sin datos de detalle)'}</div>
+      ${top10.length?`<div class="tw"><table><thead><tr><th>#</th><th>Producto</th><th>Qty</th></tr></thead><tbody>${top10.map(([p,q],i)=>`<tr><td class="tm">${i+1}</td><td>${p}</td><td class="bold">${fmt(q)}</td></tr>`).join('')}</tbody></table></div>`:'<div class="nodata" style="padding:16px">Carga la hoja "Detalles de las ordenes"</div>'}
+    </div>
+    <div class="card">
+      <div class="ct">Mapa de pedidos</div>
+      <div id="rest-map"></div>
+      <p class="txs tm mt8" id="map-note"></p>
+    </div>
+  </div>
+  <div class="g3 mb16">
+    <div class="card">
+      <div class="ct">Resumen financiero</div>
+      <div class="sr"><span class="sl">Ventas totales</span><span class="sv">${fmtCOP(ventas)}</span></div>
+      <div class="sr"><span class="sl">Descuentos</span><span class="sv ty">-${fmtCOP(desc)}</span></div>
+      <div class="sr"><span class="sl">Costo envío</span><span class="sv">${fmtCOP(envio)}</span></div>
+      <div class="sr"><span class="sl">Ticket promedio</span><span class="sv">${fmtCOP(ticket)}</span></div>
+      <div class="sr"><span class="sl">Ahorro vs marketplace</span><span class="sv tg">${fmtCOP(ahorro)}</span></div>
+      <div class="sr"><span class="sl bold">Factura Menüpp</span><span class="sv tp bold">${fmtCOP(factura)}</span></div>
+    </div>
+    <div class="card">
+      <div class="ct">Estados</div>
+      ${(()=>{const e={};ords.forEach(o=>{e[o.estado]=(e[o.estado]||0)+1;});return Object.entries(e).sort((a,b)=>b[1]-a[1]).map(([s,n])=>`<div class="sr"><span class="sl">${s}</span><span class="sv">${fmt(n)} <span class="tm txs">(${fmtPct(n,ords.length)})</span></span></div>`).join('');})()}
+    </div>
+    <div class="card">
+      <div class="ct">Domiciliarios</div>
+      ${(()=>{const d={};ords.filter(o=>o.dom&&o.dom!=='Sin asignar'&&o.dom!=='').forEach(o=>{d[o.dom]=(d[o.dom]||0)+1;});const e=Object.entries(d).sort((a,b)=>b[1]-a[1]).slice(0,8);return e.length?e.map(([n,c])=>`<div class="sr"><span class="sl">${n}</span><span class="sv">${fmt(c)}</span></div>`).join(''):'<div class="nodata" style="padding:12px">Sin datos</div>';})()}
+    </div>
+  </div>
+  ${(()=>{
+    const hMonths=Object.keys(HISTORY).sort().filter(m=>HISTORY[m][name]);
+    if(hMonths.length<2)return'';
+    const hLabels=hMonths.map(m=>{const d=mDate(m);return d.toLocaleString('es-CO',{month:'short',year:'2-digit'});});
+    const hCob=hMonths.map(m=>HISTORY[m][name].cobrable||0);
+    const hVen=hMonths.map(m=>HISTORY[m][name].ventas||0);
+    const best=hCob.indexOf(Math.max(...hCob));
+    const trend=hCob.length>=2&&hCob[hCob.length-2]?((hCob[hCob.length-1]-hCob[hCob.length-2])/hCob[hCob.length-2]*100):null;
+    return `<div class="card mt16" id="rst-hist-card">
+      <div class="fbet mb12">
+        <div class="ct" style="margin:0">📈 Historial (${hMonths.length} meses)</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          ${trend!==null?`<span class="badge" style="background:rgba(${trend>=0?'46,204,113':'231,76,60'},.15);color:${trend>=0?'#2ECC71':'#E74C3C'};font-size:11px">${trend>=0?'▲':'▼'} ${Math.abs(trend).toFixed(0)}% vs mes ant.</span>`:''}
+          <span class="badge bg txs">Mejor: ${hLabels[best]} (${fmt(hCob[best])})</span>
+        </div>
+      </div>
+      <div style="height:180px;position:relative"><canvas id="ch-rst-hist"></canvas></div>
+      <div class="fbet mt8 txs tm">
+        <span>Promedio: ${fmt(Math.round(hCob.reduce((s,v)=>s+v,0)/hCob.length))} ped/mes</span>
+        <button class="btn btn-s btn-sm" onclick="showView('historico');showHistorico();setTimeout(()=>{document.getElementById('hist-rest-sel').value='${esc(name)}';renderRestEvol();},200)" style="font-size:11px">Ver en Histórico →</button>
+      </div>
+    </div>`;
+  })()}`;
+
+  requestAnimationFrame(()=>{
+    const bd2={};
+    cob.forEach(o=>{if(!o.fecha)return;const k=o.fecha.toISOString().slice(0,10);bd2[k]=(bd2[k]||0)+1;});
+    const days2=Object.keys(bd2).sort();
+    mkChart('ch-rd','bar',days2,[{label:'Cobrables',data:days2.map(d=>bd2[d]),backgroundColor:'rgba(255,52,100,.75)',borderRadius:3}],{legendOpts:{display:false}});
+    const be2={},bp2={},bt2={};
+    ords.forEach(o=>{be2[o.estado]=(be2[o.estado]||0)+1;bt2[o.tipo||'Sin tipo']=(bt2[o.tipo||'Sin tipo']||0)+1;});
+    cob.forEach(o=>{bp2[o.pago||'Sin dato']=(bp2[o.pago||'Sin dato']||0)+1;});
+    mkChart('ch-re','doughnut',Object.keys(be2),[{data:Object.values(be2),backgroundColor:COLORS}],{legendOpts:{position:'bottom',labels:{font:{size:10}}}});
+    mkChart('ch-rp','doughnut',Object.keys(bp2),[{data:Object.values(bp2),backgroundColor:COLORS}],{legendOpts:{position:'bottom',labels:{font:{size:10}}}});
+    mkChart('ch-rt','doughnut',Object.keys(bt2),[{data:Object.values(bt2),backgroundColor:COLORS}],{legendOpts:{position:'bottom',labels:{font:{size:10}}}});
+    initMap(ords);
+    // Historical mini-chart in restaurant detail
+    const hm=Object.keys(HISTORY).sort().filter(m=>HISTORY[m][name]);
+    if(hm.length>=2){
+      const hl=hm.map(m=>{const d=mDate(m);return d.toLocaleString('es-CO',{month:'short',year:'2-digit'});});
+      const hc=hm.map(m=>HISTORY[m][name].cobrable||0);
+      const hv=hm.map(m=>HISTORY[m][name].ventas||0);
+      mkChart('ch-rst-hist','line',hl,[
+        {label:'Cobrables',data:hc,borderColor:'#FF4057',backgroundColor:'rgba(255,64,87,.1)',fill:true,tension:0.4,pointRadius:4,pointBackgroundColor:'#FF4057',yAxisID:'y'},
+        {label:'Ventas',data:hv,borderColor:'#9B97C8',backgroundColor:'transparent',fill:false,tension:0.4,pointRadius:4,pointBackgroundColor:'#9B97C8',borderDash:[4,3],yAxisID:'y1'}
+      ],{
+        tlabel:c=>c.datasetIndex===0?fmt(c.raw):fmtCOP(c.raw),
+        extra:{scales:{
+          x:{ticks:{color:'#C4D2E0',font:{size:10}},grid:{color:'rgba(7,28,45,.08)'}},
+          y:{ticks:{color:'#FF4057',font:{size:10}},grid:{color:'rgba(7,28,45,.08)'},position:'left'},
+          y1:{ticks:{color:'#9B97C8',font:{size:10},callback:v=>fmtCOP(v)},grid:{display:false},position:'right'}
+        }}
+      });
+    }
+  });
+}
+
+// ═══════════════════ MAP (FIXED) ═══════════════════
+function initMap(ords){
+  try{
+    if(leafMap){leafMap.off();leafMap.remove();leafMap=null;}
+    const el=document.getElementById('rest-map');
+    if(!el)return;
+    el.innerHTML='';
+    delete el._leaflet_id;
+    const pts=ords.filter(o=>o.lat!==0&&o.lng!==0&&!isNaN(o.lat)&&!isNaN(o.lng)&&Math.abs(o.lat)<=90&&Math.abs(o.lng)<=180);
+    const center=pts.length?[pts[0].lat,pts[0].lng]:[4.6,-74.1];
+    leafMap=L.map('rest-map',{zoomControl:true,attributionControl:false}).setView(center,pts.length?13:6);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{subdomains:'abcd',maxZoom:19}).addTo(leafMap);
+    if(pts.length){
+      const lm={};
+      pts.forEach(o=>{const k=`${o.lat.toFixed(4)},${o.lng.toFixed(4)}`;lm[k]=(lm[k]||0)+1;});
+      const mx=Math.max(...Object.values(lm));
+      Object.entries(lm).forEach(([key,count])=>{
+        const [lat,lng]=key.split(',').map(Number);
+        const ratio=count/mx;
+        L.circleMarker([lat,lng],{radius:6+ratio*16,fillColor:'#FF4057',color:'#FF4057',weight:1,opacity:.9,fillOpacity:.3+ratio*.55})
+          .bindPopup(`<b>${count} pedido${count>1?'s':''}</b>`).addTo(leafMap);
+      });
+      if(Object.keys(lm).length>1) leafMap.fitBounds(Object.keys(lm).map(k=>k.split(',').map(Number)),{padding:[20,20]});
+      document.getElementById('map-note').textContent=`${pts.length} pedidos · ${Object.keys(lm).length} ubicaciones`;
+    } else {
+      document.getElementById('map-note').textContent='Sin coordenadas — mostrando Colombia';
+    }
+    setTimeout(()=>{if(leafMap)leafMap.invalidateSize();},250);
+  }catch(e){console.error('Map:',e);const el=document.getElementById('rest-map');if(el)el.innerHTML='<div class="nodata">Mapa no disponible</div>';}
+}
+
+// ═══════════════════ COBROS ═══════════════════
+function renderCobros(){
+  if(!S.orders.length)return;
+  document.getElementById('cob-per').textContent=S.currentPeriod||'';
+  const rg=groupBy();
+  let totCOP=0,totOrds=0,paid=0,pend=0;
+  const rows=[];
+  Object.entries(rg).forEach(([name,ords])=>{
+    const cobN=ords.filter(isCob).length, fee=feeFor(name,cobN), fac=cobN*fee;
+    const t=getTier(cobN), ps=PAY_ST[S.currentPeriod+':'+name]||{status:'pendiente',note:''};
+    totCOP+=fac;totOrds+=cobN;
+    if(ps.status==='pagado')paid+=fac; else pend+=fac;
+    rows.push({name,farmer:FARMERS[name]||'—',cobN,t,fee,fac,ps});
+  });
+  rows.sort((a,b)=>b.fac-a.fac);
+  document.getElementById('cob-total').textContent=fmtCOP(totCOP);
+  document.getElementById('cob-ords').textContent=fmt(totOrds);
+  document.getElementById('cob-pend').textContent=fmtCOP(pend);
+  document.getElementById('cob-paid').textContent=fmtCOP(paid);
+  document.getElementById('cob-tbody').innerHTML=rows.map(r=>{
+    const pk=S.currentPeriod+':'+r.name;
+    return `<tr>
+      <td class="bold">${r.name}</td><td>${r.farmer}</td>
+      <td class="tp bold">${fmt(r.cobN)}</td>
+      <td><span class="badge ${r.t.cls}">${r.t.label}</span></td>
+      <td><input type="number" value="${r.fee}" style="width:85px" onchange="updateFee('${esc(r.name)}',this.value,${r.cobN})">${has100Score(r.name)?'<span style="display:block;font-size:10px;color:#2ECC71;font-weight:600;margin-top:2px">⭐ -50% checklist</span>':''}</td>
+      <td class="bold">${fmtCOP(r.fac)}${has100Score(r.name)?'<span style="display:block;font-size:10px;color:#2ECC71;font-weight:600">(-50% dto.)</span>':''}</td>
+      <td><select onchange="updatePS('${esc(pk)}',this.value)" style="width:120px">
+        <option value="pendiente" ${r.ps.status==='pendiente'?'selected':''}>⏳ Pendiente</option>
+        <option value="pagado" ${r.ps.status==='pagado'?'selected':''}>✅ Pagado</option>
+        <option value="en_gestion" ${r.ps.status==='en_gestion'?'selected':''}>🔄 En gestión</option>
+      </select></td>
+      <td><input type="text" placeholder="Notas…" value="${r.ps.note||''}" style="width:130px" onchange="updatePN('${esc(pk)}',this.value)"></td>
+    </tr>`;
+  }).join('');
+}
+function updateFee(n,v,c){ const num=parseFloat(v); if(!isNaN(num)&&num>=0){FEES[n]=num;cloudSave('fees',FEES);} renderCobros(); }
+function updatePS(pk,v){ if(!PAY_ST[pk])PAY_ST[pk]={status:v,note:''}; else PAY_ST[pk].status=v; cloudSave('pay_st',PAY_ST); renderCobros(); }
+function updatePN(pk,v){ if(!PAY_ST[pk])PAY_ST[pk]={status:'pendiente',note:v}; else PAY_ST[pk].note=v; cloudSave('pay_st',PAY_ST); }
+// ═══════════════════ PDF BULK DOWNLOAD ═══════════════════
+function _REMOVED_buildRestPDF(name, monthLabel){
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({format:'a4',unit:'mm'});
+  const PW=210;
+  const PINK=[255,52,100], DARK=[11,22,35], SURF=[17,30,46], SURF2=[23,36,54];
+  const LGREY=[240,245,250], MGREY=[180,195,210], DGREY=[60,85,110];
+  const GREEN=[46,204,113], YELLOW=[241,196,15], WHITE=[255,255,255];
+
+  // Data
+  const ords=S.orders.filter(o=>o.rest===name);
+  const cob=ords.filter(isCob), cobN=cob.length;
+  const ventas=cob.reduce((s,o)=>s+o.total,0);
+  const ticket=cobN?ventas/cobN:0;
+  const canc=ords.filter(o=>o.estado==='Cancelado').length;
+  const rech=ords.filter(o=>o.estado==='Rechazado').length;
+  const desc=cob.reduce((s,o)=>s+o.desc,0);
+  const envio=cob.reduce((s,o)=>s+o.envio,0);
+  const fee=feeFor(name,cobN);
+  const factura=cobN*fee;
+  const ahorro=Math.max(0,ventas*0.27-factura);
+  const t=getTier(cobN), tp=tierProgress(cobN);
+  const score=getRestScore(name);
+  const farmer=FARMERS[name]||'';
+  const prev=prevData(name);
+  const completedItems=SCORE_ITEMS.filter(i=>{const d=CK_DATA[name];return d&&d.items&&d.items[i.k];});
+  const pendingItems=SCORE_ITEMS.filter(i=>{const d=CK_DATA[name];return !(d&&d.items&&d.items[i.k]);});
+  const recs=getReportRecommendations({cobN,canc,rech,ords,prev,score,tp,pendingItems,ticket});
+
+  // Weeks
+  const wks={1:[],2:[],3:[],4:[],5:[]};
+  cob.forEach(o=>{if(!o.fecha)return;const d=o.fecha.getDate();wks[d<=7?1:d<=14?2:d<=21?3:d<=28?4:5].push(o);});
+
+  // Products
+  const ids=new Set(cob.map(o=>o.id));
+  const prods={};
+  S.details.filter(d=>ids.has(d.id)).forEach(d=>{prods[d.prod]=(prods[d.prod]||0)+d.qty;});
+  const top5=Object.entries(prods).sort((a,b)=>b[1]-a[1]).slice(0,5);
+
+  // Channels / payment
+  const tipo={}, pago={};
+  cob.forEach(o=>{tipo[o.tipo||'Sin tipo']=(tipo[o.tipo||'Sin tipo']||0)+1; pago[o.pago||'Sin dato']=(pago[o.pago||'Sin dato']||0)+1;});
+
+  let y=0;
+
+  // ── PAGE BACKGROUND ──────────────────────────────────────────────────────
+  doc.setFillColor(...DARK); doc.rect(0,0,PW,297,'F');
+
+  // ── HEADER BAND ──────────────────────────────────────────────────────────
+  doc.setFillColor(...DARK);
+  doc.rect(0,0,PW,38,'F');
+  doc.setFillColor(...PINK);
+  doc.rect(0,36,PW,1.5,'F');
+
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(22); doc.setTextColor(...PINK);
+  doc.text('menüpp',PW/2,14,{align:'center'});
+  doc.setFontSize(9); doc.setTextColor(...MGREY);
+  doc.text(`Informe mensual — ${monthLabel}`,PW/2,21,{align:'center'});
+  doc.setFontSize(13); doc.setTextColor(...WHITE);
+  doc.text(name,PW/2,30,{align:'center'});
+  if(farmer){doc.setFontSize(8);doc.setTextColor(...MGREY);doc.text(`Farmer: ${farmer}`,PW/2,35.5,{align:'center'});}
+  y=44;
+
+  // ── KPI BOXES ────────────────────────────────────────────────────────────
+  const kpis=[
+    {l:'Pedidos exitosos',v:fmt(cobN),c:PINK,sub:prev?`${cobN>=prev.cobrable?'▲':'▼'} vs mes ant.`:''},
+    {l:'Ventas totales',v:fmtCOP(ventas),c:WHITE,sub:''},
+    {l:'Ticket promedio',v:fmtCOP(ticket),c:WHITE,sub:''},
+    {l:'Ahorro vs marketplace',v:fmtCOP(ahorro),c:GREEN,sub:'vs ~27% comisión (aprox.)'},
+    {l:'Factura Menüpp',v:fmtCOP(factura),c:PINK,sub:`${fmt(cobN)} × ${fmtCOP(fee)}`},
+  ];
+  const bw=36, bh=18, bx=14, gap=(PW-bx*2-bw*5)/4;
+  kpis.forEach((k,i)=>{
+    const x=bx+i*(bw+gap);
+    doc.setFillColor(...SURF2); doc.roundedRect(x,y,bw,bh,2,2,'F');
+    doc.setFillColor(...PINK); doc.rect(x,y,2,bh,'F');
+    doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(...MGREY);
+    doc.text(k.l,x+4,y+5.5);
+    doc.setFont('helvetica','bold'); doc.setFontSize(9.5); doc.setTextColor(...k.c);
+    doc.text(k.v,x+4,y+11.5);
+    if(k.sub){doc.setFont('helvetica','normal');doc.setFontSize(6.5);doc.setTextColor(...MGREY);doc.text(k.sub,x+4,y+16);}
+  });
+  y+=bh+8;
+
+  // ── TIER PROGRESS ────────────────────────────────────────────────────────
+  doc.setFillColor(...SURF); doc.roundedRect(14,y,PW-28,14,2,2,'F');
+  doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(...WHITE);
+  doc.text(`Tier actual: ${t.label}`,17,y+5.5);
+  doc.setFont('helvetica','normal'); doc.setFontSize(7.5); doc.setTextColor(...MGREY);
+  const tierTxt=tp.maxTier?'🏆 Nivel máximo alcanzado':`Faltan ${fmt(tp.toNext)} pedidos para el siguiente nivel (−${tp.feeSaving} COP/pedido)`;
+  doc.text(tierTxt,17,y+10.5);
+  // bar
+  const barX=PW-80, barW=60, barH=3.5;
+  doc.setFillColor(...SURF2); doc.roundedRect(barX,y+4.5,barW,barH,1,1,'F');
+  const tierColors={1:PINK,2:[255,140,66],3:[155,151,200],4:GREEN};
+  doc.setFillColor(...(tierColors[t.tier]||PINK));
+  doc.roundedRect(barX,y+4.5,Math.max(2,barW*tp.barPct/100),barH,1,1,'F');
+  doc.setFont('helvetica','normal'); doc.setFontSize(6.5); doc.setTextColor(...MGREY);
+  doc.text(`${tp.barPct.toFixed(0)}%`,barX+barW+2,y+7.5);
+  y+=22;
+
+  // ── SCORE ────────────────────────────────────────────────────────────────
+  const sc=score; const scColor=sc>=90?[155,151,200]:sc>=70?GREEN:sc>=50?YELLOW:PINK;
+  doc.setFillColor(...SURF); doc.roundedRect(14,y,PW-28,14,2,2,'F');
+  doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(...WHITE);
+  doc.text('⭐  Score de Buenas Prácticas',17,y+5.5);
+  doc.setFontSize(12); doc.setTextColor(...scColor);
+  doc.text(`${sc}/100`,PW-30,y+9,{align:'right'});
+  const sb_x=PW-90, sb_w=50, sb_h=3;
+  doc.setFillColor(...SURF2); doc.roundedRect(sb_x,y+5.5,sb_w,sb_h,1,1,'F');
+  doc.setFillColor(...scColor); doc.roundedRect(sb_x,y+5.5,Math.max(1,sb_w*sc/100),sb_h,1,1,'F');
+  if(pendingItems.length){
+    doc.setFont('helvetica','normal'); doc.setFontSize(6.5); doc.setTextColor(...MGREY);
+    const pend=pendingItems.slice(0,5).map(i=>i.l).join(', ')+(pendingItems.length>5?'…':'');
+    doc.text(`Pendiente: ${pend}`,17,y+11.5,{maxWidth:PW-60});
+  }
+  y+=22;
+
+  // ── TABLAS (autotable) ────────────────────────────────────────────────────
+  const tHead={fillColor:PINK,textColor:WHITE,fontStyle:'bold',fontSize:8,cellPadding:3};
+  const tBody={fillColor:SURF2,textColor:WHITE,fontSize:8,cellPadding:3,alternateRowStyles:{fillColor:SURF}};
+  const tStyle={styles:tBody,headStyles:tHead,margin:{left:14,right:14},theme:'plain'};
+
+  // Semanas
+  doc.autoTable({...tStyle,startY:y,
+    head:[['Semana','Pedidos','Ventas','Ticket prom.']],
+    body:[1,2,3,4,5].map(w=>{const wv=wks[w].reduce((s,o)=>s+o.total,0);return[`Semana ${w}`,fmt(wks[w].length),fmtCOP(wv),fmtCOP(wks[w].length?wv/wks[w].length:0)];}),
+    columnStyles:{0:{cellWidth:40},1:{cellWidth:35,halign:'center'},2:{cellWidth:55,halign:'right'},3:{cellWidth:55,halign:'right'}},
+  });
+  y=doc.lastAutoTable.finalY+6;
+
+  // Canal + Pago en 2 columnas
+  const tipoRows=Object.entries(tipo).sort((a,b)=>b[1]-a[1]).map(([t2,n])=>[t2,fmt(n),`${fmtPct(n,cobN)}`]);
+  const pagoRows=Object.entries(pago).sort((a,b)=>b[1]-a[1]).map(([p2,n])=>[p2,fmt(n),`${fmtPct(n,cobN)}`]);
+  const maxR=Math.max(tipoRows.length,pagoRows.length);
+  for(let i=tipoRows.length;i<maxR;i++)tipoRows.push(['','','']);
+  for(let i=pagoRows.length;i<maxR;i++)pagoRows.push(['','','']);
+  const combined=tipoRows.map((r,i)=>[...r,'','','',...pagoRows[i]]);
+  doc.autoTable({...tStyle,startY:y,
+    head:[['Canal','Pedidos','%','','Canal pago','Pedidos','%']],
+    body:combined,
+    columnStyles:{0:{cellWidth:38},1:{cellWidth:20,halign:'center'},2:{cellWidth:18,halign:'center'},3:{cellWidth:4,fillColor:DARK},4:{cellWidth:42},5:{cellWidth:20,halign:'center'},6:{cellWidth:19,halign:'center'}},
+  });
+  y=doc.lastAutoTable.finalY+6;
+
+  // Top productos
+  if(top5.length){
+    doc.autoTable({...tStyle,startY:y,
+      head:[['#','Producto más pedido','Cantidad']],
+      body:top5.map(([p,q],i)=>[String(i+1),p,fmt(q)]),
+      columnStyles:{0:{cellWidth:12,halign:'center'},1:{cellWidth:140},2:{cellWidth:29,halign:'center'}},
+    });
+    y=doc.lastAutoTable.finalY+6;
+  }
+
+  // Resumen pedidos
+  doc.autoTable({...tStyle,startY:y,
+    head:[['Métrica','Valor']],
+    body:[['Total pedidos',fmt(ords.length)],['Exitosos',fmt(cobN)],['Cancelados',fmt(canc)],['Rechazados',fmt(rech)],['Descuentos',`-${fmtCOP(desc)}`],['Costo envío',fmtCOP(envio)],['Campaña Pauta',CK_DATA[name]?.items?.pauta?'✅ Activa':'❌ No registrada'],['Difusión BD',CK_DATA[name]?.items?.difusion?'✅ Activa':'❌ No registrada']],
+    columnStyles:{0:{cellWidth:90},1:{cellWidth:91,halign:'right'}},
+  });
+  y=doc.lastAutoTable.finalY+6;
+
+  // ── RECOMENDACIONES ──────────────────────────────────────────────────────
+  if(recs.length){
+    if(y>230){doc.addPage();doc.setFillColor(...DARK);doc.rect(0,0,PW,297,'F');y=14;}
+    doc.setFillColor(...SURF); doc.roundedRect(14,y,PW-28,7,2,2,'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(...PINK);
+    doc.text('💡  Recomendaciones para este mes',PW/2,y+4.8,{align:'center'});
+    y+=10;
+    recs.forEach((r,idx)=>{
+      const rTitle=r.title.replace(/<[^>]+>/g,'');
+      const rAction=r.action;
+      const lines=doc.splitTextToSize(`${idx+1}. ${rTitle}`,PW-36);
+      const aLines=doc.splitTextToSize(`→ ${rAction}`,PW-40);
+      const h=lines.length*4+aLines.length*3.5+8;
+      if(y+h>280){doc.addPage();doc.setFillColor(...DARK);doc.rect(0,0,PW,297,'F');y=14;}
+      doc.setFillColor(...SURF2); doc.roundedRect(14,y,PW-28,h,2,2,'F');
+      doc.setFillColor(r.color?parseInt(r.color.slice(1,3),16):255,r.color?parseInt(r.color.slice(3,5),16):52,r.color?parseInt(r.color.slice(5,7),16):100);
+      doc.rect(14,y,2,h,'F');
+      doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor(...WHITE);
+      doc.text(lines,18,y+5);
+      doc.setFont('helvetica','normal'); doc.setFontSize(7.5); doc.setTextColor(...MGREY);
+      doc.text(aLines,18,y+5+lines.length*4+1);
+      y+=h+4;
+    });
+  }
+
+  // ── FOOTER ───────────────────────────────────────────────────────────────
+  const pages=doc.getNumberOfPages();
+  for(let p=1;p<=pages;p++){
+    doc.setPage(p);
+    doc.setFillColor(...DARK);
+    doc.rect(0,284,PW,13,'F');
+    doc.setFillColor(...PINK); doc.rect(0,284,PW,0.8,'F');
+    doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(...MGREY);
+    doc.text('¡Gracias por crecer con menüpp! — product@menupp.co',PW/2,290,{align:'center'});
+    doc.text(`Pág. ${p}/${pages}`,PW-14,290,{align:'right'});
+    // Dark bg all pages
+    if(p>1){doc.setPage(p);doc.setFillColor(...DARK);doc.rect(0,0,PW,284,'F');}
+  }
+  // Dark bg page 1 (draw behind, then re-draw content — workaround: insert bg before content)
+  return doc;
+}
+
+function _loadScript(src){return new Promise((res,rej)=>{if(document.querySelector(`script[src="${src}"]`)){res();return;}const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=rej;document.head.appendChild(s);});}
+
+async function downloadAllReports(btn){
+  if(!S.orders.length){alert('Carga un archivo primero');return;}
+  const orig=btn.innerHTML; btn.disabled=true;
+
+  // Load html2canvas dinamicamente si falta
+  if(!window.html2canvas) await _loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+
+  const farmerFilter=document.getElementById('dl-farmer-sel')?.value||'';
+  const allRests=[...new Set(S.orders.map(o=>o.rest))].sort();
+  const rests=farmerFilter?allRests.filter(r=>FARMERS[r]===farmerFilter):allRests;
+  if(!rests.length){alert('No hay restaurantes para este Farmer en el período actual.');btn.innerHTML=orig;btn.disabled=false;return;}
+  const zipName=farmerFilter?`Informes_${farmerFilter.replace(/\s+/g,'_')}_${S.currentPeriod||'mes'}`:`Informes_Menupp_${S.currentPeriod||'mes'}`;
+  const zip=new JSZip();
+  const folder=zip.folder(zipName);
+
+  // Overlay de progreso
+  const ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(249,237,220,.97);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;font-family:\'Plus Jakarta Sans\',sans-serif';
+  ov.innerHTML=`
+    <div style="text-align:center;padding:40px">
+      <div style="font-size:30px;font-weight:800;color:#FF4057;letter-spacing:-1px;margin-bottom:6px">menüpp</div>
+      <div style="font-size:15px;font-weight:600;color:#071C2D;margin-bottom:4px">Generando informes PDF${farmerFilter?` · ${farmerFilter}`:''}</div>
+      <div id="ov-rest" style="font-size:12px;color:#3A5168;min-height:18px;margin-bottom:24px;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Iniciando…</div>
+      <div style="width:340px;background:#C8B89A;border-radius:99px;height:6px;overflow:hidden;margin:0 auto 10px">
+        <div id="ov-bar" style="height:100%;background:linear-gradient(90deg,#FF4057,#FF8C42);width:0%;transition:width .35s ease;border-radius:99px"></div>
+      </div>
+      <div id="ov-count" style="font-size:11px;color:#6A8098;margin-top:6px">0 / ${rests.length} restaurantes</div>
+    </div>`;
+  document.body.appendChild(ov);
+  const ovRest=ov.querySelector('#ov-rest');
+  const ovBar=ov.querySelector('#ov-bar');
+  const ovCount=ov.querySelector('#ov-count');
+
+  for(let i=0;i<rests.length;i++){
+    const name=rests[i];
+    ovRest.textContent=name;
+    ovBar.style.width=`${((i+1)/rests.length*100).toFixed(0)}%`;
+    ovCount.textContent=`${i+1} / ${rests.length} restaurantes`;
+    await new Promise(r=>setTimeout(r,0));
+    try{
+      // Renderiza el informe HTML del restaurante
+      renderReport(name, true);
+      // Espera charts y DOM
+      await new Promise(r=>requestAnimationFrame(()=>setTimeout(r,450)));
+
+      const rv=document.getElementById('view-report');
+      const inner=rv.querySelector('div');
+
+      // Oculta mapa (Leaflet no se captura bien) y botones
+      const noprints=[...rv.querySelectorAll('.no-print')];
+      const mapCard=document.getElementById('report-map')?.closest('.card');
+      noprints.forEach(el=>el.style.visibility='hidden');
+      if(mapCard) mapCard.style.display='none';
+
+      // Ancho fijo para captura consistente
+      const prevW=inner.style.width, prevM=inner.style.margin, prevP=inner.style.padding;
+      inner.style.cssText+='width:780px!important;margin:0!important;padding:28px!important;box-sizing:border-box!important;';
+
+      // ── Capturar posiciones de cards ANTES de html2canvas (mientras el layout está fijado)
+      await new Promise(r=>requestAnimationFrame(r)); // esperar reflow
+      const PW=210, PH=297;
+      const captureScale=3;
+      const cssW=inner.offsetWidth||780;
+      const snapScrollH=inner.scrollHeight; // altura total ANTES de captura
+      const mmPerCssPx=PW/cssW;
+      const a4Hcss=Math.round(PH/mmPerCssPx);
+      const innerTop=inner.getBoundingClientRect().top;
+      const cardBottoms=[...inner.querySelectorAll('.card,.rh,.sav-box,.tier-prog,.g2,.g3,.g4,.g5')]
+        .map(el=>el.getBoundingClientRect().bottom - innerTop)
+        .filter(v=>v>0 && v<snapScrollH).sort((a,b)=>a-b);
+
+      const canvas=await html2canvas(inner,{
+        scale:captureScale, useCORS:true, backgroundColor:'#F9EDDC', logging:false, allowTaint:true
+      });
+
+      // Restaura
+      inner.style.width=prevW; inner.style.margin=prevM; inner.style.padding=prevP;
+      noprints.forEach(el=>el.style.visibility='');
+      if(mapCard) mapCard.style.display='';
+
+      // Una sola página del alto exacto del contenido — sin cortes
+      const {jsPDF}=window.jspdf;
+      const totalHmm=Math.round(snapScrollH*mmPerCssPx*10)/10;
+      const doc=new jsPDF({format:[PW,totalHmm],unit:'mm',orientation:'portrait'});
+      doc.addImage(canvas.toDataURL('image/png'),'PNG',0,0,PW,totalHmm);
+
+      const safeName=name.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s\-]/g,'_').trim();
+      folder.file(`${safeName}.pdf`,doc.output('blob'));
+    }catch(e){console.error('PDF error',name,e);}
+  }
+
+  showView('cobros');
+  ovRest.textContent='Comprimiendo ZIP…';
+  ovBar.style.width='100%';
+  await new Promise(r=>setTimeout(r,50));
+
+  const content=await zip.generateAsync({type:'blob',compression:'DEFLATE'});
+  document.body.removeChild(ov);
+
+  const url=URL.createObjectURL(content);
+  const a=document.createElement('a');
+  a.href=url; a.download=`${zipName}.zip`;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  btn.innerHTML=orig; btn.disabled=false;
+}
+
+function exportCSV(){ const rows=[['Restaurante','Fecha','Estado','Total','Tipo','Pago','Cobrable']]; S.orders.forEach(o=>rows.push([o.rest,o.fecha?o.fecha.toISOString().slice(0,10):'',o.estado,o.total,o.tipo,o.pago,isCob(o)?'Si':'No'])); dlCSV(rows,`pedidos_${S.currentPeriod}.csv`); }
+function exportFacturasExcel(){
+  if(!S.orders.length){alert('Carga un archivo primero');return;}
+  const wb = XLSX.utils.book_new();
+  const period = S.currentPeriod||'mes';
+  const rg = groupBy();
+
+  // ── Estilos comunes ───────────────────────────────────────────────────────
+  const pink='FF4057', dark='071C2D', white='FFFAF5', grey='3A5168', green='1A8A50', amber='A07A00';
+  const hdr=(v,bold=true,bg=dark,fc=pink,sz=12)=>({v,t:'s',s:{font:{bold,color:{rgb:fc},sz},fill:{fgColor:{rgb:bg}},alignment:{horizontal:'center',vertical:'center',wrapText:true}}});
+  const cell=(v,bold=false,fc='333333',halign='left',fmt=null)=>({v,t:typeof v==='number'?'n':'s',s:{font:{bold,color:{rgb:fc}},alignment:{horizontal:halign},...(fmt?{numFmt:fmt}:{})}});
+  const money=(v)=>({v,t:'n',s:{numFmt:'"$"#,##0',font:{color:{rgb:'111111'}},alignment:{horizontal:'right'}}});
+  const pct=(v)=>({v:v/100,t:'n',s:{numFmt:'0.0%',alignment:{horizontal:'center'}}});
+
+  // ── HOJA 1: Resumen de Cobros ─────────────────────────────────────────────
+  const sumRows=[];
+  sumRows.push([hdr('menüpp — Resumen de Cobros',true,dark,pink,16),'','','','','','','']);
+  sumRows.push([hdr(`Período: ${period}`,false,dark,grey,10),'','','','','','','']);
+  sumRows.push(['','','','','','','','']);
+  sumRows.push([hdr('Restaurante'),hdr('Farmer'),hdr('Pedidos cobr.'),hdr('Tier'),hdr('Fee/pedido'),hdr('Total a pagar'),hdr('% Checklist'),hdr('Estado pago')]);
+
+  let grandTotal=0, grandOrds=0;
+  const rows=[];
+  Object.entries(rg).forEach(([name,ords])=>{
+    const cobN=ords.filter(isCob).length;
+    const fee=feeFor(name,cobN), fac=cobN*fee, t=getTier(cobN);
+    const pk=S.currentPeriod+':'+name, ps=PAY_ST[pk]||{status:'pendiente'};
+    const d=CK_DATA[name], score=d&&d.items?SCORE_ITEMS.reduce((s,i)=>s+(d.items[i.k]?i.pts:0),0):0;
+    const disc=has100Score(name);
+    grandTotal+=fac; grandOrds+=cobN;
+    rows.push({name,cobN,fee,fac,t,ps,score,disc,farmer:FARMERS[name]||'—'});
+  });
+  rows.sort((a,b)=>b.fac-a.fac);
+  rows.forEach(r=>{
+    const stColor=r.ps.status==='pagado'?green:r.ps.status==='vencido'?'E74C3C':amber;
+    sumRows.push([
+      cell(r.name,true),
+      cell(r.farmer),
+      cell(r.cobN,false,'111111','center'),
+      cell(r.t.label,false,'111111','center'),
+      money(r.fee),
+      money(r.fac),
+      pct(r.score),
+      {v:r.ps.status,t:'s',s:{font:{bold:true,color:{rgb:stColor}},alignment:{horizontal:'center'}}}
+    ]);
+  });
+  sumRows.push(['','','','','','','','']);
+  sumRows.push([cell('TOTAL',true,'111111','right'),'','',cell(fmt(grandOrds),true,'111111','center'),'',money(grandTotal),'','']);
+
+  const wsSum = XLSX.utils.aoa_to_sheet(sumRows);
+  wsSum['!cols']=[{wch:32},{wch:18},{wch:14},{wch:10},{wch:13},{wch:16},{wch:12},{wch:14}];
+  wsSum['!merges']=[{s:{r:0,c:0},e:{r:0,c:7}},{s:{r:1,c:0},e:{r:1,c:7}}];
+  XLSX.utils.book_append_sheet(wb, wsSum, 'Resumen');
+
+  // ── HOJA 2+: Factura individual por restaurante ───────────────────────────
+  rows.forEach(r=>{
+    const ords=rg[r.name]||[];
+    const cob=ords.filter(isCob);
+    const wks={1:[],2:[],3:[],4:[],5:[]};
+    cob.forEach(o=>{if(!o.fecha)return;const d=o.fecha.getDate();wks[d<=7?1:d<=14?2:d<=21?3:d<=28?4:5].push(o);});
+    const ventas=cob.reduce((s,o)=>s+o.total,0);
+    const canc=ords.filter(o=>o.estado==='Cancelado').length;
+    const rech=ords.filter(o=>o.estado==='Rechazado').length;
+
+    const fRows=[];
+    fRows.push([hdr('menüpp',true,dark,pink,18),'','','']);
+    fRows.push([hdr(`FACTURA — ${period}`,true,dark,white,13),'','','']);
+    fRows.push([hdr(r.name,true,dark,grey,11),'','',hdr(r.farmer?`Farmer: ${r.farmer}`:'',false,dark,grey,9)]);
+    fRows.push(['','','','']);
+    fRows.push([hdr('Semana',true,'1E3048',white),hdr('Pedidos',true,'1E3048',white),hdr('Ventas',true,'1E3048',white),hdr('Ticket prom.',true,'1E3048',white)]);
+    [1,2,3,4,5].forEach(w=>{
+      const wv=wks[w].reduce((s,o)=>s+o.total,0);
+      fRows.push([cell(`Semana ${w}`),cell(wks[w].length,false,'111111','center'),money(wv),money(wks[w].length?wv/wks[w].length:0)]);
+    });
+    fRows.push(['','','','']);
+    fRows.push([hdr('RESUMEN',true,'1E3048',white),'',hdr('COBRO',true,'1E3048',white),'']);
+    fRows.push([cell('Total pedidos'),cell(ords.length,true,'111111','center'),cell('Tier'),cell(r.t.label,true,pink==='FF4057'?pink:'071C2D','center')]);
+    fRows.push([cell('Exitosos'),cell(r.cobN,true,green,'center'),cell('Fee por pedido'),money(r.fee)]);
+    fRows.push([cell('Cancelados'),cell(canc,false,'E74C3C','center'),r.disc?cell('Descuento checklist 100%',true,green):cell(''),r.disc?cell('-50%',true,green,'center'):cell('')]);
+    fRows.push([cell('Rechazados'),cell(rech,false,'E74C3C','center'),cell(''),'']);
+    fRows.push([cell('Ventas totales'),money(ventas),cell(''),'']);
+    fRows.push(['','','','']);
+    fRows.push([hdr('TOTAL A PAGAR',true,dark,pink,13),'',{v:r.fac,t:'n',s:{font:{bold:true,color:{rgb:pink},sz:14},numFmt:'"$"#,##0',alignment:{horizontal:'right'}}},'']);
+    fRows.push([cell(`Estado: ${r.ps.status}`,true,r.ps.status==='pagado'?green:'E74C3C'),'',cell(r.ps.note||''),'']);
+    fRows.push(['','','','']);
+    fRows.push([cell('product@menupp.co · menüpp',false,grey),'','','']);
+
+    const wsN=r.name.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s]/g,'').trim().slice(0,28);
+    const wsFac=XLSX.utils.aoa_to_sheet(fRows);
+    wsFac['!cols']=[{wch:26},{wch:14},{wch:22},{wch:18}];
+    wsFac['!merges']=[
+      {s:{r:0,c:0},e:{r:0,c:3}},{s:{r:1,c:0},e:{r:1,c:3}},
+      {s:{r:2,c:0},e:{r:2,c:2}},{s:{r:14,c:0},e:{r:14,c:1}},{s:{r:14,c:2},e:{r:14,c:3}}
+    ];
+    XLSX.utils.book_append_sheet(wb, wsFac, wsN||`Rest${rows.indexOf(r)+1}`);
+  });
+
+  XLSX.writeFile(wb, `Facturas_Menupp_${period}.xlsx`);
+}
+function exportCobrosCSV(){ const rg=groupBy(); const rows=[['Restaurante','Farmer','Cobrables','Tier','Fee','Total','Estado','Notas']]; Object.entries(rg).forEach(([n,ords])=>{const c=ords.filter(isCob).length,f=feeFor(n,c),t=getTier(c),pk=S.currentPeriod+':'+n,ps=PAY_ST[pk]||{};rows.push([n,FARMERS[n]||'',c,t.label,f,c*f,ps.status||'pendiente',ps.note||'']);}); dlCSV(rows,`cobros_${S.currentPeriod}.csv`); }
+function dlCSV(rows,fname){ const csv=rows.map(r=>r.map(c=>'"'+String(c||'').replace(/"/g,'""')+'"').join(',')).join('\n'); const a=document.createElement('a'); a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv); a.download=fname; a.click(); }
+
+// ═══════════════════ FARMERS ═══════════════════
+function renderFarmers(){
+  if(!S.orders.length)return;
+  const names=[...new Set(S.orders.map(o=>o.rest))].sort();
+  // Assign list
+  document.getElementById('farmer-list').innerHTML=names.map(n=>`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;align-items:center">
+      <span class="ts">${n}</span>
+      <input type="text" class="fi" data-rest="${n}" value="${FARMERS[n]||''}" placeholder="Nombre KAM">
+    </div>`).join('');
+  // Performance
+  const fm={};
+  const rg=groupBy();
+  names.forEach(n=>{
+    const f=FARMERS[n]||'Sin asignar';
+    if(!fm[f])fm[f]={rests:[],cobN:0,ventas:0,prevCob:0};
+    fm[f].rests.push(n);
+    const ords=rg[n]||[];
+    const cob=ords.filter(isCob);
+    fm[f].cobN+=cob.length;
+    fm[f].ventas+=cob.reduce((s,o)=>s+o.total,0);
+    const p=prevData(n); if(p)fm[f].prevCob+=p.cobrable;
+  });
+  const fe=Object.entries(fm).sort((a,b)=>b[1].cobN-a[1].cobN);
+  document.getElementById('farmer-perf').innerHTML=fe.map(([f,d])=>{
+    const pct=d.prevCob?((d.cobN-d.prevCob)/d.prevCob*100).toFixed(1):null;
+    return `<tr><td class="bold">${f}</td><td>${d.rests.length}</td><td class="tp">${fmt(d.cobN)}</td><td>${fmtCOP(d.ventas)}</td><td>${pct?`<span class="${pct>=0?'tg':'tr'}">${pct>=0?'▲':'▼'}${Math.abs(pct)}%</span>`:'—'}</td></tr>`;
+  }).join('');
+  requestAnimationFrame(()=>{
+    mkChart('ch-fc','bar',fe.map(([f])=>f),[{label:'Cobrables',data:fe.map(([,d])=>d.cobN),backgroundColor:COLORS,borderRadius:4}],{legendOpts:{display:false}});
+    mkChart('ch-fr','bar',fe.map(([f])=>f),[{label:'Restaurantes',data:fe.map(([,d])=>d.rests.length),backgroundColor:COLORS,borderRadius:4}],{legendOpts:{display:false}});
+  });
+  // Update KAM filter in checklist
+  const cf=document.getElementById('ck-filter');
+  const farmers=[...new Set(Object.values(FARMERS))].filter(Boolean).sort();
+  cf.innerHTML='<option value="">Todos</option>'+farmers.map(f=>`<option value="${f}">${f}</option>`).join('');
+}
+
+function saveFarmers(){
+  document.querySelectorAll('.fi').forEach(el=>{
+    const r=el.dataset.rest, v=el.value.trim();
+    if(v)FARMERS[r]=v; else delete FARMERS[r];
+  });
+  cloudSave('farmers',FARMERS);
+  renderGlobalTable();
+  alert('✅ Farmers guardados');
+}
+
+// ═══════════════════ ADD MANUAL REST ═══════════════════
+function toggleAddForm(){
+  const f=document.getElementById('add-rest-form');
+  f.style.display=f.style.display==='none'?'block':'none';
+}
+
+function addManualRest(){
+  const name=document.getElementById('nr-name').value.trim();
+  const farmer=document.getElementById('nr-farmer').value.trim();
+  if(!name){alert('El nombre del restaurante es obligatorio');return;}
+  MANUAL_RESTS[name]={
+    farmer:farmer||'Sin asignar',
+    link:document.getElementById('nr-link').value.trim(),
+    notas:document.getElementById('nr-notas').value.trim(),
+    fecha_cap:document.getElementById('nr-cap').value||null,
+    estado:document.getElementById('nr-estado').value,
+    added:new Date().toISOString().slice(0,10)
+  };
+  if(farmer) FARMERS[name]=farmer;
+  if(document.getElementById('nr-cap').value && !CK_DATA[name]) CK_DATA[name]={fecha_cap:document.getElementById('nr-cap').value,items:{}};
+  cloudSave('manual_rests',MANUAL_RESTS);
+  cloudSave('farmers',FARMERS);
+  cloudSave('ck_data',CK_DATA);
+  // Clear form
+  ['nr-name','nr-farmer','nr-link','nr-notas','nr-cap'].forEach(id=>document.getElementById(id).value='');
+  toggleAddForm();
+  renderChecklist();
+  // Update KAM filter
+  populateRstSel();
+}
+
+function deleteManualRest(name){
+  if(!confirm(`¿Eliminar "${name}" del seguimiento manual?`))return;
+  delete MANUAL_RESTS[name];
+  cloudSave('manual_rests',MANUAL_RESTS);
+  renderChecklist();
+}
+
+// ═══════════════════ CHECKLIST ═══════════════════
+function renderChecklist(){
+  const filter=document.getElementById('ck-filter').value;
+  const names=allRestNames().filter(n=>!filter||(FARMERS[n]===filter||MANUAL_RESTS[n]?.farmer===filter));
+  if(!names.length){document.getElementById('ck-list').innerHTML='<div class="nodata">No hay restaurantes. Agrega uno con el botón de arriba.</div>';renderRiskAlerts([]);return;}
+  renderRiskAlerts(names);
+  const rg=groupBy();
+  document.getElementById('ck-list').innerHTML=names.map(n=>{
+    const ords=rg[n]||[];
+    const d=CK_DATA[n]||{fecha_cap:'',items:{}};
+    const score=SCORE_ITEMS.reduce((s,i)=>s+(d.items&&d.items[i.k]?i.pts:0),0);
+    const state=getRestState(n,ords);
+    const cobN=ords.filter(isCob).length;
+    const isManual=!!MANUAL_RESTS[n];
+    const mr=MANUAL_RESTS[n]||{};
+    // Auto activation date from orders
+    const cobOrds=ords.filter(isCob).filter(o=>o.fecha).sort((a,b)=>a.fecha-b.fecha);
+    const actDate=cobOrds.length?cobOrds[0].fecha.toISOString().slice(0,10):null;
+    const capDate=d.fecha_cap||mr.fecha_cap||'';
+    const daysToAct=actDate&&capDate?Math.max(0,Math.round((new Date(actDate)-new Date(capDate))/(1000*60*60*24))):null;
+    const risks=getRisk(n);
+    const hasRedRisk=risks.some(r=>r.level==='red');
+    const hasYellowRisk=risks.some(r=>r.level==='yellow');
+    const riskBorder=hasRedRisk?'border-color:rgba(231,76,60,.4)':hasYellowRisk?'border-color:rgba(241,196,15,.3)':'';
+    return `
+    <div class="ck-card" style="${riskBorder}">
+      <div class="ck-header" onclick="toggleCK('${esc(n)}')">
+        <div style="flex:1">
+          <div class="flex" style="gap:8px;margin-bottom:4px;flex-wrap:wrap">
+            <span class="bold ts">${n}</span>
+            ${stateBadge(state)}
+            ${isManual?'<span class="badge bb">Manual</span>':''}
+            <span class="ts tm">${FARMERS[n]||mr.farmer||'Sin asignar'}</span>
+            ${hasRedRisk?'<span style="font-size:13px">🔴</span>':hasYellowRisk?'<span style="font-size:13px">🟡</span>':''}
+          </div>
+          <div class="flex" style="gap:12px;flex-wrap:wrap">
+            <span class="txs tm">${cobN} pedidos cobrables</span>
+            ${actDate?`<span class="txs tg">✓ Activado ${actDate}${daysToAct!==null?` (${daysToAct}d)`:''}</span>`:capDate?'<span class="txs ty">⏳ En construcción</span>':'<span class="txs tr">○ Sin capacitar</span>'}
+            ${mr.notas?`<span class="txs tm">📝 ${mr.notas}</span>`:''}
+          </div>
+        </div>
+        <div style="text-align:right;min-width:80px">
+          <div class="bold" style="font-size:18px;color:${scoreColor(score)}">${score}<span class="txs tm">/100</span></div>
+          <div class="sbar mt8" style="width:80px"><div class="sbar-fill" style="width:${score}%;background:${scoreColor(score)}"></div></div>
+        </div>
+        ${isManual?`<button class="btn btn-s btn-sm" style="margin-left:8px;color:var(--red)" onclick="event.stopPropagation();deleteManualRest('${esc(n)}')">✕</button>`:''}
+        <div style="color:var(--text3);margin-left:8px;font-size:16px" id="ck-arr-${n.replace(/[^a-z0-9]/gi,'_')}">▸</div>
+      </div>
+      <div class="ck-body" id="ck-body-${n.replace(/[^a-z0-9]/gi,'_')}">
+        <div class="g2 mb16">
+          <div>
+            <label class="txs tm mb8" style="display:block">📅 Fecha Capacitación</label>
+            <input type="date" value="${capDate}" onchange="saveCKDate('${esc(n)}',this.value)" style="width:180px">
+          </div>
+          <div>
+            <label class="txs tm mb8" style="display:block">🚀 Fecha Activación (primer pedido)</label>
+            <input type="text" value="${actDate||'Sin pedidos aún'}" disabled style="width:180px;opacity:.6">
+            ${daysToAct!==null?`<span class="txs tm"> → ${daysToAct} día${daysToAct!==1?'s':''} de capacitación a activación</span>`:''}
+          </div>
+        </div>
+        <div class="ct">Checklist de buenas prácticas</div>
+        <div class="ck-grid">${SCORE_ITEMS.map(item=>{
+          const checked=d.items&&d.items[item.k];
+          return `<div class="ck-item${checked?' checked':''}" onclick="toggleItem('${esc(n)}','${item.k}')">
+            <span class="ck-dot"></span>
+            <input type="checkbox" ${checked?'checked':''} onclick="event.stopPropagation();toggleItem('${esc(n)}','${item.k}')" style="width:15px;height:15px;flex-shrink:0">
+            <span class="ck-label">${item.l}</span>
+            <span class="ck-pts">${checked?'✓':'+'}${item.pts}</span>
+          </div>`;
+        }).join('')}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderRiskAlerts(names){
+  const wrap = document.getElementById('risk-alerts-wrap');
+  if(!wrap) return;
+  const allAlerts = [];
+  names.forEach(n=>{
+    const alerts = getRisk(n);
+    alerts.forEach(a=>allAlerts.push({name:n, ...a}));
+  });
+  if(!allAlerts.length){ wrap.innerHTML=''; return; }
+  const reds  = allAlerts.filter(a=>a.level==='red');
+  const yellows = allAlerts.filter(a=>a.level==='yellow');
+  wrap.innerHTML=`
+    <div class="risk-section mb16">
+      <div class="ct" style="color:${reds.length?'var(--red)':'var(--yellow)'}">⚠️ ${allAlerts.length} alerta${allAlerts.length!==1?'s':''} de riesgo</div>
+      ${reds.map(a=>`<div class="risk-alert"><span style="font-size:16px">🔴</span><div style="flex:1"><strong>${a.name}</strong>${FARMERS[a.name]?`<span class="txs tm" style="margin-left:6px">· ${FARMERS[a.name]}</span>`:''} — ${a.msg}</div><span class="txs tm">${a.action}</span></div>`).join('')}
+      ${yellows.map(a=>`<div class="risk-warn"><span style="font-size:16px">🟡</span><div style="flex:1"><strong>${a.name}</strong>${FARMERS[a.name]?`<span class="txs tm" style="margin-left:6px">· ${FARMERS[a.name]}</span>`:''} — ${a.msg}</div><span class="txs tm">${a.action}</span></div>`).join('')}
+    </div>`;
+}
+
+function toggleCK(name){
+  const id=name.replace(/[^a-z0-9]/gi,'_');
+  const body=document.getElementById('ck-body-'+id);
+  const arr=document.getElementById('ck-arr-'+id);
+  if(!body)return;
+  body.classList.toggle('open');
+  if(arr) arr.textContent=body.classList.contains('open')?'▾':'▸';
+}
+
+function saveCKDate(name,val){
+  if(!CK_DATA[name])CK_DATA[name]={fecha_cap:'',items:{}};
+  CK_DATA[name].fecha_cap=val;
+  cloudSave('ck_data',CK_DATA);
+}
+
+function toggleItem(name,key){
+  if(!CK_DATA[name])CK_DATA[name]={fecha_cap:'',items:{}};
+  if(!CK_DATA[name].items)CK_DATA[name].items={};
+  CK_DATA[name].items[key]=!CK_DATA[name].items[key];
+  cloudSave('ck_data',CK_DATA);
+  renderChecklist();
+}
+
+// ═══════════════════ PERFORMANCE ═══════════════════
+function getKAMStats(){
+  const names=[...new Set(S.orders.map(o=>o.rest))].sort();
+  const rg=groupBy();
+  const fm={};
+  names.forEach(n=>{
+    const f=FARMERS[n]||'Sin asignar';
+    if(!fm[f])fm[f]={rests:[],cap:0,act:0,actDeriv:0,times:[],scores:[]};
+    fm[f].rests.push(n);
+    const d=CK_DATA[n]||{};
+    const ords=rg[n]||[];
+    const cobOrds=ords.filter(isCob).filter(o=>o.fecha).sort((a,b)=>a.fecha-b.fecha);
+    const actDate=cobOrds.length?cobOrds[0].fecha:null;
+    const capDate=d.fecha_cap?new Date(d.fecha_cap):null;
+    // Is in current month?
+    const mk=S.currentPeriod;
+    const inMonth=(dt)=>dt&&dt.toISOString().slice(0,7)===mk;
+    const capInMonth=inMonth(capDate);
+    const actInMonth=inMonth(actDate);
+    if(capInMonth) fm[f].cap++;
+    if(actInMonth) fm[f].act++;
+    if(capInMonth&&actInMonth){ fm[f].actDeriv++; if(capDate&&actDate){ const days=Math.max(0,Math.round((actDate-capDate)/(1000*60*60*24))); fm[f].times.push(days); } }
+    const score=getRestScore(n);
+    if(score>0) fm[f].scores.push(score);
+  });
+  return fm;
+}
+
+function renderPerformance(){
+  if(!S.orders.length)return;
+  const fm=getKAMStats();
+  const fe=Object.entries(fm).filter(([f])=>f!=='Sin asignar'||fm[f].rests.length>0).sort((a,b)=>b[1].actDeriv-a[1].actDeriv);
+  // KPI cards
+  const total={rests:0,cap:0,act:0,actDeriv:0};
+  fe.forEach(([,d])=>{total.rests+=d.rests.length;total.cap+=d.cap;total.act+=d.act;total.actDeriv+=d.actDeriv;});
+  const allTimes=fe.flatMap(([,d])=>d.times);
+  const avgTime=allTimes.length?allTimes.reduce((s,v)=>s+v,0)/allTimes.length:0;
+  document.getElementById('perf-kpis').innerHTML=`
+    <div class="kpi"><div class="kl">Capacitados (mes)</div><div class="kv">${total.cap}</div></div>
+    <div class="kpi"><div class="kl">Activados (mes)</div><div class="kv tg">${total.act}</div></div>
+    <div class="kpi"><div class="kl">Activados Derivados</div><div class="kv tp">${total.actDeriv}</div></div>
+    <div class="kpi"><div class="kl">Tiempo prom. activación</div><div class="kv">${avgTime?avgTime.toFixed(1)+'d':'—'}</div></div>`;
+  // Ranking table
+  document.getElementById('perf-tbody').innerHTML=fe.map(([f,d],i)=>{
+    const avgT=d.times.length?(d.times.reduce((s,v)=>s+v,0)/d.times.length).toFixed(1):'—';
+    const avgS=d.scores.length?(d.scores.reduce((s,v)=>s+v,0)/d.scores.length).toFixed(0):'—';
+    const pct=d.cap?((d.actDeriv/d.cap)*100).toFixed(0)+'%':'—';
+    return `<tr>
+      <td class="bold tm">${i+1}</td>
+      <td class="bold">${f}</td>
+      <td>${d.cap}</td>
+      <td class="tg bold">${d.act}</td>
+      <td class="tp bold">${d.actDeriv}</td>
+      <td>${pct}</td>
+      <td>${avgT!=='—'?avgT+'d':'—'}</td>
+      <td><span class="bold" style="color:${avgS!=='—'?scoreColor(Number(avgS)):'var(--text3)'}">${avgS!=='—'?avgS+'/100':'—'}</span></td>
+      <td>${d.rests.length}</td>
+    </tr>`;
+  }).join('');
+  requestAnimationFrame(()=>{
+    mkChart('ch-pact','bar',fe.map(([f])=>f),[{label:'Activados derivados',data:fe.map(([,d])=>d.actDeriv),backgroundColor:'rgba(255,52,100,.75)',borderRadius:4}],{legendOpts:{display:false}});
+    const scoreData=fe.map(([,d])=>d.scores.length?(d.scores.reduce((s,v)=>s+v,0)/d.scores.length).toFixed(1):0);
+    mkChart('ch-pscore','bar',fe.map(([f])=>f),[{label:'Score prom.',data:scoreData,backgroundColor:fe.map(([,d])=>{const s=d.scores.length?(d.scores.reduce((s2,v)=>s2+v,0)/d.scores.length):0;return scoreColor(s);}),borderRadius:4}],{legendOpts:{display:false},extra:{scales:{x:{ticks:{color:'#C4D2E0',font:{size:11}},grid:{color:'rgba(7,28,45,.08)'}},y:{max:100,ticks:{color:'#C4D2E0',font:{size:11}},grid:{color:'rgba(7,28,45,.08)'}}}}});
+  });
+}
+
+// ═══════════════════ PREMIOS ═══════════════════
+function renderPremios(){
+  if(!S.orders.length)return;
+  const fm=getKAMStats();
+  const fe=Object.entries(fm).filter(([f])=>f!=='Sin asignar'&&fm[f].rests.length>0);
+
+  function getPrize(cat,val){
+    if(cat==='actDeriv'){if(val>=8)return{m:'🥇',l:'Oro',v:100000,c:'tg'};if(val>=6)return{m:'🥈',l:'Plata',v:70000,c:'ty'};if(val>=5)return{m:'🥉',l:'Bronce',v:50000,c:'',s:'#CD7F32'};return{m:'—',l:'Sin premio',v:0,c:'tm'};}
+    if(cat==='tiempo'){if(val===null)return{m:'—',l:'Sin datos',v:0,c:'tm'};if(val<5)return{m:'🥇',l:'Oro',v:100000,c:'tg'};if(val<=8)return{m:'🥈',l:'Plata',v:70000,c:'ty'};if(val<=11)return{m:'🥉',l:'Bronce',v:50000,c:'',s:'#CD7F32'};return{m:'—',l:'Sin premio',v:0,c:'tm'};}
+    if(cat==='score'){if(val===null)return{m:'—',l:'Sin datos',v:0,c:'tm'};if(val>=91)return{m:'🥇',l:'Oro',v:100000,c:'tg'};if(val>=81)return{m:'🥈',l:'Plata',v:70000,c:'ty'};if(val>=70)return{m:'🥉',l:'Bronce',v:50000,c:'',s:'#CD7F32'};return{m:'—',l:'Sin premio',v:0,c:'tm'};}
+  }
+  function getGrupal(oros){if(oros>=3)return{m:'🥇',l:'Premio Grupal Oro',v:100000};if(oros>=2)return{m:'🥈',l:'Premio Grupal Plata',v:70000};if(oros>=1)return{m:'🥉',l:'Premio Grupal Bronce',v:50000};return{m:'—',l:'Sin premio grupal',v:0};}
+
+  document.getElementById('premios-cards').innerHTML=fe.map(([f,d])=>{
+    const avgT=d.times.length?d.times.reduce((s,v)=>s+v,0)/d.times.length:null;
+    const avgS=d.scores.length?d.scores.reduce((s,v)=>s+v,0)/d.scores.length:null;
+    const p1=getPrize('actDeriv',d.actDeriv);
+    const p2=getPrize('tiempo',avgT);
+    const p3=getPrize('score',avgS);
+    const oros=[p1,p2,p3].filter(p=>p.l==='Oro').length;
+    const pg=getGrupal(oros);
+    const total=p1.v+p2.v+p3.v+pg.v;
+    return `
+    <div class="prize-card">
+      <div class="fbet mb12">
+        <div class="bold">${f}</div>
+        <div class="bold tg ts">${total?fmtCOP(total):'$0'}</div>
+      </div>
+      <div class="prize-tier">
+        <span class="medal">${p1.m}</span>
+        <div style="flex:1"><div class="ts">${p1.l} · Activados</div><div class="txs tm">${d.actDeriv} derivados</div></div>
+        <span class="ts bold ${p1.c}" style="${p1.s?'color:'+p1.s:''}">${p1.v?fmtCOP(p1.v):''}</span>
+      </div>
+      <div class="prize-tier">
+        <span class="medal">${p2.m}</span>
+        <div style="flex:1"><div class="ts">${p2.l} · Tiempo</div><div class="txs tm">${avgT!==null?avgT.toFixed(1)+' días prom.':'Sin datos'}</div></div>
+        <span class="ts bold ${p2.c}" style="${p2.s?'color:'+p2.s:''}">${p2.v?fmtCOP(p2.v):''}</span>
+      </div>
+      <div class="prize-tier">
+        <span class="medal">${p3.m}</span>
+        <div style="flex:1"><div class="ts">${p3.l} · Score</div><div class="txs tm">${avgS!==null?avgS.toFixed(0)+'% promedio':'Sin datos'}</div></div>
+        <span class="ts bold ${p3.c}" style="${p3.s?'color:'+p3.s:''}">${p3.v?fmtCOP(p3.v):''}</span>
+      </div>
+      <div class="prize-tier" style="background:rgba(155,151,200,.06);border-radius:6px;padding:8px;margin-top:4px;border:none">
+        <span class="medal">${pg.m}</span>
+        <div style="flex:1"><div class="ts">${pg.l}</div><div class="txs tm">${oros} oro${oros!==1?'s':''}</div></div>
+        <span class="ts bold tl">${pg.v?fmtCOP(pg.v):''}</span>
+      </div>
+    </div>`;
+  }).join('');
+  if(!fe.length) document.getElementById('premios-cards').innerHTML='<div class="nodata" style="grid-column:1/-1">Asigna farmers a restaurantes para ver los premios</div>';
+}
+
+// ═══════════════════ CLIENT REPORT ═══════════════════
+function renderReport(name, pdfMode=false){
+  if(!name)name=document.getElementById('rst-sel').value;
+  if(!name)return;
+  const ords=S.orders.filter(o=>o.rest===name);
+  const cob=ords.filter(isCob), cobN=cob.length;
+  const ventas=cob.reduce((s,o)=>s+o.total,0), ticket=cobN?ventas/cobN:0;
+  const t=getTier(cobN), fee=feeFor(name,cobN), factura=cobN*fee;
+  const ahorro=Math.max(0,ventas*0.27-factura);
+  const prev=prevData(name);
+  const canc=ords.filter(o=>o.estado==='Cancelado').length, rech=ords.filter(o=>o.estado==='Rechazado').length;
+  const desc=cob.reduce((s,o)=>s+o.desc,0), envio=cob.reduce((s,o)=>s+o.envio,0);
+  const wks={1:[],2:[],3:[],4:[],5:[]};
+  cob.forEach(o=>{if(!o.fecha)return;const d=o.fecha.getDate();wks[d<=7?1:d<=14?2:d<=21?3:d<=28?4:5].push(o);});
+  const pago={},tipo={};
+  cob.forEach(o=>{pago[o.pago||'Sin dato']=(pago[o.pago||'Sin dato']||0)+1;tipo[o.tipo||'Sin tipo']=(tipo[o.tipo||'Sin tipo']||0)+1;});
+  const ids=new Set(cob.map(o=>o.id));const prods={};
+  S.details.filter(d=>ids.has(d.id)).forEach(d=>{prods[d.prod]=(prods[d.prod]||0)+d.qty;});
+  const top5=Object.entries(prods).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const month=S.currentPeriod?mDate(S.currentPeriod).toLocaleString('es-CO',{month:'long',year:'numeric'}):'';
+  let rv=document.getElementById('view-report');
+  if(!rv){
+    rv=document.createElement('div');rv.className='view';rv.id='view-report';document.body.appendChild(rv);
+    const btn=document.createElement('button');btn.className='nb';btn.onclick=()=>showView('report');btn.textContent='📄 Reporte';document.querySelector('nav').appendChild(btn);
+  }
+  // Score & tier progress
+  const score=getRestScore(name);
+  const tp=tierProgress(cobN);
+  const completedItems=SCORE_ITEMS.filter(i=>{const d=CK_DATA[name];return d&&d.items&&d.items[i.k];});
+  const pendingItems=SCORE_ITEMS.filter(i=>{const d=CK_DATA[name];return !(d&&d.items&&d.items[i.k]);});
+  const recs=getReportRecommendations({cobN,canc,rech,ords,prev,score,tp,pendingItems,ticket});
+
+  rv.innerHTML=`<div style="max-width:760px;margin:0 auto" class="${pdfMode?'pdf-brand-mode':''}">
+    <div class="no-print fbet mb16">
+      <button class="btn btn-s btn-sm" onclick="showView('restaurantes')">← Volver</button>
+      <button class="btn btn-p btn-sm" onclick="window.print()">🖨 Imprimir / PDF</button>
+    </div>
+    <div class="rh"><div style="opacity:.7;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Informe mensual — ${month}</div><h1 style="font-size:22px;font-weight:800">${name}</h1><p style="opacity:.8;font-size:14px">Tu resumen de ventas en Menüpp</p></div>
+    <div class="g3 mb16">
+      <div class="kpi"><div class="kl">Pedidos exitosos</div><div class="kv tp">${fmt(cobN)}</div>${prev?`<div class="ks ${cobN>=prev.cobrable?'up':'dn'}">${cobN>=prev.cobrable?'▲':'▼'} ${Math.abs(((cobN-prev.cobrable)/prev.cobrable*100)).toFixed(0)}% vs mes anterior (${fmt(prev.cobrable)})</div>`:''}</div>
+      <div class="kpi"><div class="kl">Ventas totales</div><div class="kv">${fmtCOP(ventas)}</div>${prev?`<div class="ks ${ventas>=prev.ventas?'up':'dn'}">${ventas>=prev.ventas?'▲':'▼'} ${Math.abs(((ventas-prev.ventas)/prev.ventas*100)).toFixed(0)}% vs mes anterior</div>`:''}</div>
+      <div class="kpi"><div class="kl">Ticket promedio</div><div class="kv">${fmtCOP(ticket)}</div></div>
+    </div>
+    <!-- FACTURA + AHORRO -->
+    <div class="g2 mb16">
+      <div class="kpi" style="background:rgba(255,64,87,.08);border:1.5px solid rgba(255,64,87,.35);border-radius:12px;padding:18px">
+        <div class="kl" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">💳 Total a pagar — Menüpp</div>
+        <div style="font-size:32px;font-weight:800;color:var(--pink);line-height:1">${fmtCOP(factura)}</div>
+        <div class="ts tm mt8">${fmt(cobN)} pedidos × ${fmtCOP(fee)} (${tp.t.label})${has100Score(name)?'<span style="margin-left:6px;background:rgba(46,204,113,.15);color:#2ECC71;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700">⭐ -50% Checklist completo</span>':''}</div>
+        <div class="txs tm" style="margin-top:6px;opacity:.7">vs marketplace (~27% aprox.): ${fmtCOP(ventas*0.27)} — ahorraste <span style="color:var(--green);font-weight:700">${fmtCOP(ahorro)}</span></div>
+      </div>
+      <div class="sav-box" style="display:flex;flex-direction:column;justify-content:center">
+        <div class="ts tm mb8">💰 Ahorro estimado vs marketplace (~27% comisión, puede variar)</div>
+        <div style="font-size:30px;font-weight:800;color:var(--green)">${fmtCOP(ahorro)}</div>
+        <div class="ts tm" style="margin-top:6px">Pagaste ${fmtCOP(factura)} con Menüpp vs ${fmtCOP(ventas*0.27)} en Rappi/Uber Eats</div>
+      </div>
+    </div>
+
+    <!-- TIER PROGRESS -->
+    <div class="tier-prog mb16">
+      <div class="fbet mb8">
+        <div><span class="bold ts">Tu nivel actual: </span><span class="badge ${tp.t.cls} ts">${tp.t.label}</span><span class="ts tm"> · ${fmtCOP(tp.t.fee)} por pedido</span></div>
+        ${!tp.maxTier?`<div class="txs tm">Te faltan <strong class="tp">${fmt(tp.toNext)} pedidos</strong> para ${tp.t.tier===1?'Tier 2':tp.t.tier===2?'Tier 3':'Tier 4'} (−${tp.feeSaving} COP/pedido)</div>`:'<div class="txs tg">🏆 Nivel máximo alcanzado</div>'}
+      </div>
+      <div class="tier-bar"><div class="tier-bar-fill" style="width:${tp.barPct.toFixed(1)}%;background:${tp.t.tier===1?'var(--t1)':tp.t.tier===2?'var(--t2)':tp.t.tier===3?'var(--t3)':'var(--t4)'}"></div></div>
+      <div class="fbet txs tm">
+        <span>${fmt(cobN)} pedidos este mes</span>
+        ${!tp.maxTier?`<span>${fmtCOP(tp.toNext * tp.feeSaving)} extra de ahorro al llegar al siguiente nivel</span>`:''}
+      </div>
+    </div>
+
+    <!-- SCORE BUENAS PRÁCTICAS -->
+    <div class="card mb16" style="background:rgba(164,164,255,.06);border-color:rgba(164,164,255,.25)">
+      <div class="fbet mb12">
+        <div class="ct" style="margin:0;color:var(--lav)">⭐ Tu Score de Buenas Prácticas</div>
+        <div style="text-align:right">
+          <div class="bold" style="font-size:22px;color:${scoreColor(score)}">${score}<span class="txs tm">/100</span></div>
+          <div class="sbar" style="width:120px;margin-left:auto;margin-top:4px"><div class="sbar-fill" style="width:${score}%;background:${scoreColor(score)}"></div></div>
+        </div>
+      </div>
+      ${completedItems.length?`
+      <div class="txs tm mb8">✅ Completado (${completedItems.length} ítems · ${completedItems.reduce((s,i)=>s+i.pts,0)} pts)</div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px">${completedItems.map(i=>`<span class="badge bg txs">${i.l} +${i.pts}</span>`).join('')}</div>`:''}
+      ${pendingItems.length?`
+      <div class="txs tm mb8">📋 Pendiente — activa estas prácticas para mejorar tu score:</div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px">${pendingItems.map(i=>`<span class="badge bgr txs">${i.l} +${i.pts}</span>`).join('')}</div>`:''}
+      ${score>=MAX_SCORE
+        ?`<div style="background:rgba(26,138,80,.1);border:1px solid rgba(26,138,80,.3);border-radius:8px;padding:10px 14px;font-size:13px;color:#1A8A50;font-weight:700">🎉 ¡Checklist 100% completado! Tu fee de este mes tiene un <strong>50% de descuento</strong>.</div>`
+        :`<div style="background:rgba(164,164,255,.08);border:1px solid rgba(164,164,255,.25);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--text2)">💡 Completa el 100% del checklist y obtén un <strong style="color:#9B97C8">50% de descuento en tu fee</strong> de este mes. Te faltan <strong>${MAX_SCORE-score} pts</strong>.</div>`
+      }
+    </div>
+    <div class="card mb16"><div class="ct">Detalle semanal</div><div class="tw"><table><thead><tr><th>Semana</th><th>Pedidos</th><th>Ventas</th><th>Ticket prom.</th></tr></thead><tbody>${[1,2,3,4,5].map(w=>{const wv=wks[w].reduce((s,o)=>s+o.total,0);return `<tr><td>Semana ${w}</td><td>${fmt(wks[w].length)}</td><td>${fmtCOP(wv)}</td><td>${fmtCOP(wks[w].length?wv/wks[w].length:0)}</td></tr>`;}).join('')}</tbody></table></div></div>
+    <div class="g2 mb16">
+      <div class="card"><div class="ct">Por canal</div>${Object.entries(tipo).sort((a,b)=>b[1]-a[1]).map(([t2,n])=>`<div class="sr"><span class="sl">${t2}</span><span class="sv">${fmt(n)} <span class="tm txs">(${fmtPct(n,cobN)})</span></span></div>`).join('')}</div>
+      <div class="card"><div class="ct">Método de pago</div>${Object.entries(pago).sort((a,b)=>b[1]-a[1]).map(([p2,n])=>`<div class="sr"><span class="sl">${p2}</span><span class="sv">${fmt(n)} <span class="tm txs">(${fmtPct(n,cobN)})</span></span></div>`).join('')}</div>
+    </div>
+    <div class="card mb16 no-print">
+      <div class="ct">Mapa de pedidos del mes</div>
+      <div id="report-map"></div>
+      <p class="txs tm mt8" id="rmap-note"></p>
+    </div>
+    ${top5.length?`<div class="card mb16"><div class="ct">Top productos del mes</div><div class="tw"><table><thead><tr><th>#</th><th>Producto</th><th>Pedidos</th></tr></thead><tbody>${top5.map(([p,q],i)=>`<tr><td class="tm">${i+1}</td><td>${p}</td><td class="bold">${fmt(q)}</td></tr>`).join('')}</tbody></table></div></div>`:''}
+    <div class="card mb16"><div class="ct">Resumen de pedidos</div><div class="g3"><div class="sr"><span class="sl">Total pedidos</span><span class="sv">${fmt(ords.length)}</span></div><div class="sr"><span class="sl">Exitosos</span><span class="sv tg">${fmt(cobN)}</span></div><div class="sr"><span class="sl">Cancelados</span><span class="sv ty">${fmt(canc)}</span></div><div class="sr"><span class="sl">Rechazados</span><span class="sv tr">${fmt(rech)}</span></div><div class="sr"><span class="sl">Descuentos</span><span class="sv">-${fmtCOP(desc)}</span></div><div class="sr"><span class="sl">Costo envío</span><span class="sv">${fmtCOP(envio)}</span></div><div class="sr"><span class="sl">Campaña Pauta</span><span class="sv">${CK_DATA[name]?.items?.pauta?'<span class="tg">✅ Activa</span>':'<span class="tr">❌ No registrada</span>'}</span></div><div class="sr"><span class="sl">Difusión BD</span><span class="sv">${CK_DATA[name]?.items?.difusion?'<span class="tg">✅ Activa</span>':'<span class="tr">❌ No registrada</span>'}</span></div></div></div>
+    ${recs.length?`
+    <div class="card mb16" style="border-color:rgba(255,64,87,.25);background:rgba(255,64,87,.04)">
+      <div class="ct" style="color:var(--pink);margin-bottom:16px">💡 Recomendaciones para este mes</div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        ${recs.map((r,idx)=>`
+        <div style="background:var(--surface2);border:1px solid var(--border);border-left:4px solid ${r.color};border-radius:10px;padding:14px 16px;display:flex;gap:14px;align-items:flex-start">
+          <div style="font-size:22px;line-height:1;flex-shrink:0;margin-top:2px">${r.icon}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:13px;color:var(--text);margin-bottom:5px">${r.title}</div>
+            <div style="font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:8px">${r.body}</div>
+            <div style="font-size:11px;background:rgba(0,0,0,.03);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text2)">
+              <span style="color:${r.color};font-weight:600">→ Acción:</span> ${r.action}
+            </div>
+          </div>
+          <div style="font-size:11px;font-weight:700;color:${r.color};background:rgba(0,0,0,.2);border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0">${idx+1}</div>
+        </div>`).join('')}
+      </div>
+    </div>`:''}
+    <div class="card" style="text-align:center;background:rgba(255,64,87,.06);border-color:rgba(255,64,87,.2)"><p class="bold tp" style="font-size:16px">¡Gracias por crecer con Menüpp! 🚀</p><p class="tm ts mt8">Tu canal propio, sin comisiones de marketplace.</p><p class="txs tm" style="margin-top:10px">Período: ${month} · product@menupp.co</p></div>
+  </div>`;
+  showView('report');
+  // Init report map after DOM renders
+  const reportOrds = S.orders.filter(o=>o.rest===name);
+  setTimeout(()=>initReportMap(reportOrds), 200);
+}
+
+function initReportMap(ords){
+  try{
+    if(reportMap){reportMap.off();reportMap.remove();reportMap=null;}
+    const el=document.getElementById('report-map');
+    if(!el)return;
+    el.innerHTML=''; delete el._leaflet_id;
+    const pts=ords.filter(o=>o.lat!==0&&o.lng!==0&&!isNaN(o.lat)&&!isNaN(o.lng)&&Math.abs(o.lat)<=90&&Math.abs(o.lng)<=180).filter(isCob);
+    const center=pts.length?[pts[0].lat,pts[0].lng]:[4.6,-74.1];
+    reportMap=L.map('report-map',{zoomControl:true,attributionControl:false,scrollWheelZoom:false}).setView(center,pts.length?13:6);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{subdomains:'abcd',maxZoom:19}).addTo(reportMap);
+    if(pts.length){
+      const lm={};
+      pts.forEach(o=>{const k=`${o.lat.toFixed(4)},${o.lng.toFixed(4)}`;lm[k]=(lm[k]||0)+1;});
+      const mx=Math.max(...Object.values(lm));
+      Object.entries(lm).forEach(([key,count])=>{
+        const [lat,lng]=key.split(',').map(Number), ratio=count/mx;
+        L.circleMarker([lat,lng],{radius:6+ratio*14,fillColor:'#FF4057',color:'#D93549',weight:1.5,opacity:1,fillOpacity:.5+ratio*.4})
+          .bindPopup(`<b>${count} pedido${count>1?'s':''}</b>`).addTo(reportMap);
+      });
+      if(Object.keys(lm).length>1) reportMap.fitBounds(Object.keys(lm).map(k=>k.split(',').map(Number)),{padding:[20,20]});
+      const note=document.getElementById('rmap-note'); if(note) note.textContent=`${pts.length} pedidos cobrables · ${Object.keys(lm).length} ubicaciones`;
+    } else {
+      const note=document.getElementById('rmap-note'); if(note) note.textContent='Sin coordenadas disponibles en este período';
+    }
+    setTimeout(()=>{if(reportMap)reportMap.invalidateSize();},300);
+  }catch(e){console.error('ReportMap:',e);}
+}
+
+// ═══════════════════ DEMO ═══════════════════
+function loadDemo(){
+  const rests=['La Sevillana','Artesana Pizza','Arepa Lab','Bananas','El Corral Express','Wok House','Sushi Box','Tacos & Co','Burger Craft','Poke Fresh'];
+  const estados=['Completado','Completado','Completado','Completado','En camino','Cancelado','Rechazado','Aceptado','En preparación','Completado'];
+  const tipos=['Domicilio','Domicilio','Recoger','Domicilio','Mesa','Domicilio','Recoger','Domicilio','Mesa','Domicilio'];
+  const pagos=['Tarjeta','Efectivo','Tarjeta','Nequi','Tarjeta','Efectivo','Tarjeta','Nequi','Tarjeta','Efectivo'];
+  const prods=['Hamburguesa Clásica','Pizza Margarita','Arepa con Todo','Bowl Poke','Tacos x3','Arroz con Pollo','Ensalada César','Jugo Natural','Brownie','Limonada'];
+  const now=new Date();const yr=now.getFullYear(),mo=now.getMonth();
+  S.orders=[];S.details=[];let oid=1000;
+  for(let m=0;m<2;m++){
+    const month2=(mo-m+12)%12,year2=mo-m<0?yr-1:yr;
+    const cnt=m===0?600:400;
+    for(let i=0;i<cnt;i++){
+      const r=rests[Math.floor(Math.random()*rests.length)];
+      const e=estados[Math.floor(Math.random()*estados.length)];
+      const ti=tipos[Math.floor(Math.random()*tipos.length)];
+      const p=pagos[Math.floor(Math.random()*pagos.length)];
+      const day=Math.floor(Math.random()*28)+1;
+      const id=String(oid++);
+      S.orders.push({id,rest:r,estado:e,fecha:new Date(year2,month2,day),total:15000+Math.random()*85000,tipo:ti,pago:p,dom:Math.random()>.5?'Carlos M.':'Sin asignar',lat:4.6+Math.random()*.08-.04,lng:-74.08+Math.random()*.1-.05,desc:Math.random()<.3?2000:0,envio:ti==='Domicilio'?3500:0});
+      for(let j=0;j<Math.floor(Math.random()*3)+1;j++) S.details.push({id,prod:prods[Math.floor(Math.random()*prods.length)],qty:1+Math.floor(Math.random()*2)});
+    }
+  }
+  S.currentPeriod=`${yr}-${String(mo+1).padStart(2,'0')}`;
+  const farmers2={};
+  ['La Sevillana','Artesana Pizza','Sushi Box','Poke Fresh'].forEach(n=>farmers2[n]='Valentina');
+  ['Arepa Lab','Bananas','Tacos & Co'].forEach(n=>farmers2[n]='Sebastián');
+  ['El Corral Express','Wok House','Burger Craft'].forEach(n=>farmers2[n]='Daniel');
+  Object.assign(FARMERS,farmers2); cloudSave('farmers',FARMERS);
+  // Demo checklist
+  rests.forEach((n,i)=>{
+    const items={};
+    SCORE_ITEMS.forEach((si,j)=>{items[si.k]=j<(3+i%4);});
+    CK_DATA[n]={fecha_cap:new Date(yr,mo,Math.floor(Math.random()*10)+1).toISOString().slice(0,10),items};
+  });
+  cloudSave('ck_data',CK_DATA);
+  saveHistory(); populateRstSel();
+  showStatus('ok','✅ Demo: 2 meses · 10 restaurantes · 3 farmers con checklist');
+  renderHistCard(); showView('global');
+}
+</script>
+</body>
+</html>
