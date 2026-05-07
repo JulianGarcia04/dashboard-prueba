@@ -734,6 +734,12 @@ function mkChart(id,type,labels,datasets,opts={}){
 }
 
 // ═══════════════════ GLOBAL VIEW ═══════════════════
+function $id(id){ return document.getElementById(id); }
+function setText(id, txt){ const el=$id(id); if(el) el.textContent = txt; return el; }
+function setHTML(id, html){ const el=$id(id); if(el) el.innerHTML = html; return el; }
+function setOuterHTML(id, html){ const el=$id(id); if(el) el.outerHTML = html; return el; }
+function setDisplay(id, v){ const el=$id(id); if(el) el.style.display = v; return el; }
+
 function renderGlobal(){
   if(!S.orders.length)return;
   const ords=S.orders, cobs=ords.filter(isCob);
@@ -744,19 +750,19 @@ function renderGlobal(){
   let prevCob=0,prevVen=0;
   if(curIdx>0){const p=HISTORY[prevKeys[curIdx-1]];prevCob=Object.values(p).reduce((s,v)=>s+v.cobrable,0);prevVen=Object.values(p).reduce((s,v)=>s+v.ventas,0);}
   const delta=(cur,prev)=>prev?`<div class="ks ${cur>=prev?'up':'dn'}">${cur>=prev?'▲':'▼'} ${Math.abs(((cur-prev)/prev*100)).toFixed(1)}% vs ant.</div>`:''
-  document.getElementById('g-title').textContent=`Dashboard Global — ${S.currentPeriod}`;
-  document.getElementById('g-sub').textContent=`${fmt(total)} pedidos · ${rests} restaurantes`;
-  document.getElementById('g-tot').textContent=fmt(total);
-  document.getElementById('g-cob').textContent=fmt(cobN);
-  document.getElementById('g-ven').textContent=fmtCOP(ventas);
-  document.getElementById('g-tck').textContent=fmtCOP(ticket);
-  document.getElementById('g-rst').textContent=rests;
+  setText('g-title',`Dashboard Global — ${S.currentPeriod}`);
+  setText('g-sub',`${fmt(total)} pedidos · ${rests} restaurantes`);
+  setText('g-tot',fmt(total));
+  setText('g-cob',fmt(cobN));
+  setText('g-ven',fmtCOP(ventas));
+  setText('g-tck',fmtCOP(ticket));
+  setText('g-rst',String(rests));
   const armiN=ords.filter(isArmi).length;
   const armiRev=armiN*ARMI_FEE;
-  document.getElementById('g-armi').textContent=fmt(armiN);
-  document.getElementById('g-armi-fee').textContent=armiN?fmtCOP(armiRev)+' total':'Sin pedidos Armi';
-  document.getElementById('g-cob-d').outerHTML=`<div class="ks" id="g-cob-d">${delta(cobN,prevCob)}</div>`;
-  document.getElementById('g-ven-d').outerHTML=`<div class="ks" id="g-ven-d">${delta(ventas,prevVen)}</div>`;
+  setText('g-armi',fmt(armiN));
+  setText('g-armi-fee',armiN?fmtCOP(armiRev)+' total':'Sin pedidos Armi');
+  setOuterHTML('g-cob-d',`<div class="ks" id="g-cob-d">${delta(cobN,prevCob)}</div>`);
+  setOuterHTML('g-ven-d',`<div class="ks" id="g-ven-d">${delta(ventas,prevVen)}</div>`);
   // Daily chart
   const bd={};
   ords.forEach(o=>{ if(!o.fecha)return; const k=o.fecha.toISOString().slice(0,10); if(!bd[k])bd[k]={t:0,c:0}; bd[k].t++; if(isCob(o))bd[k].c++; });
@@ -789,9 +795,8 @@ function renderGlobal(){
   });
   const tColors={1:'var(--t1)',2:'var(--t2)',3:'var(--t3)',4:'var(--t4)'};
   const tRanges={1:'< 500 ped.',2:'500–999',3:'1 000–4 999',4:'5 000+'};
-  const tierCard=document.getElementById('tier-dist-card');
-  tierCard.style.display='';
-  document.getElementById('tier-dist-content').innerHTML=`
+  setDisplay('tier-dist-card','');
+  setHTML('tier-dist-content',`
     <div class="g4">${[1,2,3,4].map(t=>`
       <div style="background:var(--surface2);border-radius:10px;padding:16px;border-left:3px solid ${tColors[t]}">
         <div class="txs tm" style="margin-bottom:4px">Tier ${t} <span style="opacity:.6">(${tRanges[t]})</span></div>
@@ -799,7 +804,7 @@ function renderGlobal(){
         <div class="txs tm" style="margin-top:3px">restaurante${tierCounts[t]!==1?'s':''}</div>
         ${tierDisc[t]?`<div class="txs" style="margin-top:6px;color:#2ECC71">⭐ ${tierDisc[t]} con 50% dto.</div>`:''}
       </div>`).join('')}
-    </div>`;
+    </div>`);
   renderGlobalTable();
 }
 
@@ -1182,7 +1187,7 @@ function initMap(ords){
 // ═══════════════════ COBROS ═══════════════════
 function renderCobros(){
   if(!S.orders.length)return;
-  document.getElementById('cob-per').textContent=S.currentPeriod||'';
+  setText('cob-per',S.currentPeriod||'');
   const rg=groupBy();
   let totCOP=0,totOrds=0,paid=0,pend=0;
   const rows=[];
@@ -1195,15 +1200,15 @@ function renderCobros(){
     rows.push({name,farmer:FARMERS[name]||'—',cobN,t,fee,fac,ps,armiN,armiFac});
   });
   rows.sort((a,b)=>b.fac-a.fac);
-  document.getElementById('cob-total').textContent=fmtCOP(totCOP);
-  document.getElementById('cob-ords').textContent=fmt(totOrds);
-  document.getElementById('cob-pend').textContent=fmtCOP(pend);
-  document.getElementById('cob-paid').textContent=fmtCOP(paid);
+  setText('cob-total',fmtCOP(totCOP));
+  setText('cob-ords',fmt(totOrds));
+  setText('cob-pend',fmtCOP(pend));
+  setText('cob-paid',fmtCOP(paid));
   const totalArmiN=rows.reduce((s,r)=>s+r.armiN,0);
   const totalArmiFac=totalArmiN*ARMI_FEE;
-  document.getElementById('cob-armi-n').textContent=fmt(totalArmiN);
-  document.getElementById('cob-armi-fee').textContent=totalArmiN?fmtCOP(totalArmiFac)+' total':'Sin pedidos Armi';
-  document.getElementById('cob-tbody').innerHTML=rows.map(r=>{
+  setText('cob-armi-n',fmt(totalArmiN));
+  setText('cob-armi-fee',totalArmiN?fmtCOP(totalArmiFac)+' total':'Sin pedidos Armi');
+  setHTML('cob-tbody',rows.map(r=>{
     const pk=S.currentPeriod+':'+r.name;
     return `<tr>
       <td class="bold">${r.name}</td><td>${r.farmer}</td>
@@ -1220,7 +1225,7 @@ function renderCobros(){
       </select></td>
       <td><input type="text" placeholder="Notas…" value="${r.ps.note||''}" style="width:130px" onchange="updatePN('${esc(pk)}',this.value)"></td>
     </tr>`;
-  }).join('');
+  }).join(''));
 }
 function updateFee(n,v,c){ const num=parseFloat(v); if(!isNaN(num)&&num>=0){FEES[n]=num;cloudSave('fees',FEES);} renderCobros(); }
 function updatePS(pk,v){ if(!PAY_ST[pk])PAY_ST[pk]={status:v,note:''}; else PAY_ST[pk].status=v; cloudSave('pay_st',PAY_ST); renderCobros(); }
@@ -1648,11 +1653,11 @@ function renderFarmers(){
   if(!S.orders.length)return;
   const names=[...new Set(S.orders.map(o=>o.rest))].sort();
   // Assign list
-  document.getElementById('farmer-list').innerHTML=names.map(n=>`
+  setHTML('farmer-list',names.map(n=>`
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;align-items:center">
       <span class="ts">${n}</span>
       <input type="text" class="fi" data-rest="${n}" value="${FARMERS[n]||''}" placeholder="Nombre KAM">
-    </div>`).join('');
+    </div>`).join(''));
   // Performance
   const fm={};
   const rg=groupBy();
@@ -1667,18 +1672,18 @@ function renderFarmers(){
     const p=prevData(n); if(p)fm[f].prevCob+=p.cobrable;
   });
   const fe=Object.entries(fm).sort((a,b)=>b[1].cobN-a[1].cobN);
-  document.getElementById('farmer-perf').innerHTML=fe.map(([f,d])=>{
+  setHTML('farmer-perf',fe.map(([f,d])=>{
     const pct=d.prevCob?((d.cobN-d.prevCob)/d.prevCob*100).toFixed(1):null;
     return `<tr><td class="bold">${f}</td><td>${d.rests.length}</td><td class="tp">${fmt(d.cobN)}</td><td>${fmtCOP(d.ventas)}</td><td>${pct?`<span class="${pct>=0?'tg':'tr'}">${pct>=0?'▲':'▼'}${Math.abs(pct)}%</span>`:'—'}</td></tr>`;
-  }).join('');
+  }).join(''));
   requestAnimationFrame(()=>{
     mkChart('ch-fc','bar',fe.map(([f])=>f),[{label:'Cobrables',data:fe.map(([,d])=>d.cobN),backgroundColor:COLORS,borderRadius:4}],{legendOpts:{display:false}});
     mkChart('ch-fr','bar',fe.map(([f])=>f),[{label:'Restaurantes',data:fe.map(([,d])=>d.rests.length),backgroundColor:COLORS,borderRadius:4}],{legendOpts:{display:false}});
   });
   // Update KAM filter in checklist
-  const cf=document.getElementById('ck-filter');
+  const cf=$id('ck-filter');
   const farmers=[...new Set(Object.values(FARMERS))].filter(Boolean).sort();
-  cf.innerHTML='<option value="">Todos</option>'+farmers.map(f=>`<option value="${f}">${f}</option>`).join('');
+  if(cf) cf.innerHTML='<option value="">Todos</option>'+farmers.map(f=>`<option value="${f}">${f}</option>`).join('');
 }
 
 function saveFarmers(){
