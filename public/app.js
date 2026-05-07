@@ -680,11 +680,15 @@ function renderHistRanking(months,mlabels,allRests){
 function populateRstSel(){ populateCityFilter();
   const sel=document.getElementById('rst-sel');
   const names=[...new Set(S.orders.map(o=>o.rest))].sort();
-  sel.innerHTML='<option value="">— Selecciona un restaurante —</option>'+names.map(n=>`<option value="${n}">${n}</option>`).join('');
+  if(sel){
+    sel.innerHTML='<option value="">— Selecciona un restaurante —</option>'+names.map(n=>`<option value="${n}">${n}</option>`).join('');
+  }
   // Populate checklist KAM filter
   const cf=document.getElementById('ck-filter');
   const farmers=[...new Set(Object.values(FARMERS))].filter(Boolean).sort();
-  cf.innerHTML='<option value="">Todos los restaurantes</option>'+farmers.map(f=>`<option value="${f}">${f}</option>`).join('');
+  if(cf){
+    cf.innerHTML='<option value="">Todos los restaurantes</option>'+farmers.map(f=>`<option value="${f}">${f}</option>`).join('');
+  }
   // Populate farmer download selector
   const dlSel=document.getElementById('dl-farmer-sel');
   if(dlSel) dlSel.innerHTML='<option value="">Todos los restaurantes</option>'+farmers.map(f=>`<option value="${f}">👤 ${f}</option>`).join('');
