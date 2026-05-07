@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Menüpp — Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="styles.css">
+
+<!-- External libraries -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+<!-- Firebase (Compat SDK) -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+
+<!-- Firebase config injected from .env via scripts/generate-config.js -->
+<!-- Run: node scripts/generate-config.js  before serving -->
+<script src="firebase-config.js"></script>
+</head>
+<body>
+
+<!-- ══════ LOGIN SCREEN ══════ -->
+<div id="login-screen" style="position:fixed;inset:0;background:#F9EDDC;z-index:9999;display:flex;align-items:center;justify-content:center;font-family:'Plus Jakarta Sans',sans-serif">
+  <div style="background:#FFFAF5;border:1px solid #C8B89A;border-radius:16px;padding:40px 48px;width:100%;max-width:400px;text-align:center">
+    <div style="font-size:28px;font-weight:800;color:#FF4057;margin-bottom:4px">menüpp</div>
+    <div style="font-size:13px;color:#3A5168;margin-bottom:32px">Dashboard interno · Farming</div>
+    <div id="login-err" style="display:none;background:rgba(192,57,43,.12);border:1px solid rgba(192,57,43,.3);color:#C0392B;border-radius:8px;padding:10px;font-size:13px;margin-bottom:16px"></div>
+    <input id="li-email" type="email" placeholder="Correo electrónico" autocomplete="email"
+      style="width:100%;background:#EDE7D9;border:1px solid #C8B89A;color:#071C2D;border-radius:8px;padding:11px 14px;font-family:inherit;font-size:14px;margin-bottom:12px;outline:none">
+    <input id="li-pass" type="password" placeholder="Contraseña" autocomplete="current-password"
+      style="width:100%;background:#EDE7D9;border:1px solid #C8B89A;color:#071C2D;border-radius:8px;padding:11px 14px;font-family:inherit;font-size:14px;margin-bottom:20px;outline:none">
+    <button onclick="doLogin()" id="li-btn"
+      style="width:100%;background:#FF4057;color:#fff;border:none;border-radius:8px;padding:12px;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer">
+      Entrar
+    </button>
+    <div style="font-size:12px;color:#6A8098;margin-top:20px">¿Olvidaste tu contraseña? Contacta a tu admin.</div>
+  </div>
+</div>
+
+<!-- ══════ NAV ══════ -->
+<nav>
+  <div class="logo">menüpp</div>
+  <button class="nb active" onclick="showView('global')">🌐 Global</button>
+  <button class="nb" onclick="showView('cobros')">💰 Cobros</button>
+  <button class="nb" onclick="showView('farmers')">🌱 Farmers</button>
+  <button class="nb" onclick="showView('report')">📋 Informe</button>
+  <button class="nb" id="nav-upload" onclick="showView('upload')">📤 Subir Excel</button>
+  <div id="nav-user" style="display:none;margin-top:auto;padding-top:12px;border-top:1px solid var(--border)">
+    <div id="nav-user-email" style="font-size:11px;color:var(--text3);padding:4px 12px;word-break:break-all"></div>
+    <button class="nb" onclick="doLogout()" style="margin-top:4px;color:var(--red)">🚪 Salir</button>
+  </div>
+</nav>
+
+<!-- ══════════════════════════ VIEW: GLOBAL ══════════════════════════ -->
+<div id="view-global" class="view active">
+  <div class="fbet mb16">
+    <h2 style="font-size:18px;font-weight:800">🌐 Vista Global</h2>
+    <div style="display:flex;gap:8px;align-items:center">
+      <input id="rst-sel-q" type="text" placeholder="🔍 Filtrar restaurante…" style="width:180px" oninput="filterTable(this.value)">
+      <select id="city-sel" onchange="filterCity=this.value;sortAndRender()" style="width:160px">
+        <option value="">🌆 Todas las ciudades</option>
+      </select>
+      <select id="farmer-sel" onchange="applyFilter()" style="width:140px">
+        <option value="">Todos los farmers</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- KPIs -->
+  <div class="g5 mb16" id="kpi-bar"></div>
+
+  <!-- Charts row 1 -->
+  <div class="g2 mb16">
+    <div class="card">
+      <div class="ct">📅 Pedidos cobrables por semana</div>
+      <div class="cw"><canvas id="ch-week"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="ct">🏪 Top restaurantes (cobrables)</div>
+      <div class="cw"><canvas id="ch-top"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Charts row 2 -->
+  <div class="g3 mb16">
+    <div class="card">
+      <div class="ct">📊 Distribución tiers</div>
+      <div class="cw-sm"><canvas id="ch-tier"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="ct">🌱 Por Farmer</div>
+      <div class="cw-sm"><canvas id="ch-farmer"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="ct">📡 Estado de pedidos</div>
+      <div class="cw-sm"><canvas id="ch-status"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Map + Ranking historical -->
+  <div class="g2 mb16">
+    <div class="card">
+      <div class="ct">🗺️ Mapa de restaurantes</div>
+      <div id="rest-map"></div>
+    </div>
+    <div class="card">
+      <div class="ct">📈 Ranking histórico por mes</div>
+      <div id="hist-ranking"></div>
+    </div>
+  </div>
+
+  <!-- Tabla global -->
+  <div class="card mb16">
+    <div class="fbet mb12">
+      <div class="ct" style="margin:0">📋 Detalle por restaurante</div>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-s btn-sm" onclick="sortTable(sortCol,!sortAsc)">⇅ Ordenar</button>
+        <button class="btn btn-p btn-sm" onclick="downloadAllReports()">⬇️ Descargar reportes</button>
+      </div>
+    </div>
+    <div class="tw">
+      <table id="main-table">
+        <thead><tr>
+          <th onclick="sortT(0)">Restaurante ↕</th>
+          <th onclick="sortT(1)">Farmer</th>
+          <th onclick="sortT(11)">Ciudad ↕</th>
+          <th onclick="sortT(2)">Total ↕</th>
+          <th onclick="sortT(3)">Cobrables ↕</th>
+          <th onclick="sortT(4)">Cancelados</th>
+          <th onclick="sortT(5)">Rechazados</th>
+          <th onclick="sortT(6)">Ventas ↕</th>
+          <th onclick="sortT(7)">Ticket</th>
+          <th onclick="sortT(8)">Tier</th>
+          <th onclick="sortT(9)">Score</th>
+          <th onclick="sortT(10)">Estado</th>
+          <th>Detalle</th>
+        </tr></thead>
+        <tbody id="g-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Historical trend card -->
+  <div class="card mb16" id="hist-card" style="display:none">
+    <div class="ct">📅 Evolución histórica (últimos meses)</div>
+    <div class="cw-lg"><canvas id="ch-hist"></canvas></div>
+  </div>
+
+  <!-- Descomposición del crecimiento -->
+  <div class="card mb16">
+    <div class="ct mb12">🔬 Descomposición del crecimiento</div>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:14px">¿El crecimiento viene de <strong>más restaurantes</strong> o de <strong>más pedidos por restaurante existente</strong>?</p>
+    <div id="growth-decomp"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════ VIEW: COBROS ══════════════════════════ -->
+<div id="view-cobros" class="view">
+  <div class="fbet mb16">
+    <h2 style="font-size:18px;font-weight:800">💰 Gestión de Cobros</h2>
+    <button class="btn btn-s btn-sm" onclick="exportCobrosCSV()">⬇️ Exportar CSV</button>
+  </div>
+  <div class="g4 mb16" id="cob-kpis"></div>
+  <div class="card mb16">
+    <div class="ct mb12">Estado de pagos por restaurante</div>
+    <div class="tw"><table id="cob-table"><thead></thead><tbody></tbody></table></div>
+  </div>
+  <div class="card">
+    <div class="ct mb12">📊 Revenue por tier</div>
+    <div class="cw"><canvas id="ch-rev-tier"></canvas></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════ VIEW: FARMERS ══════════════════════════ -->
+<div id="view-farmers" class="view">
+  <div class="fbet mb16">
+    <h2 style="font-size:18px;font-weight:800">🌱 Farmers & Restaurantes</h2>
+    <button class="btn btn-p btn-sm" onclick="openAddRest()">+ Agregar restaurante</button>
+  </div>
+
+  <!-- Add restaurant form (hidden) -->
+  <div id="add-rest-form" class="add-form" style="display:none">
+    <div style="font-size:13px;font-weight:700;margin-bottom:12px">Agregar restaurante manualmente</div>
+    <div class="g3">
+      <div><label class="ts bold">Nombre</label><input id="ar-name" type="text" placeholder="Nombre del restaurante"></div>
+      <div><label class="ts bold">Farmer</label><input id="ar-farmer" type="text" placeholder="Nombre del farmer"></div>
+      <div><label class="ts bold">Link menú</label><input id="ar-link" type="text" placeholder="https://…"></div>
+    </div>
+    <div class="g2 mt8">
+      <div><label class="ts bold">Notas</label><input id="ar-notes" type="text" placeholder="Notas adicionales…"></div>
+      <div><label class="ts bold">Estado</label>
+        <select id="ar-status"><option value="activo">Activo</option><option value="prueba">En prueba</option><option value="inactivo">Inactivo</option></select>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn btn-p btn-sm" onclick="saveManualRest()">Guardar</button>
+      <button class="btn btn-s btn-sm" onclick="document.getElementById('add-rest-form').style.display='none'">Cancelar</button>
+    </div>
+  </div>
+
+  <!-- Farmer selector -->
+  <div class="ftabs" id="farmer-tabs"></div>
+
+  <!-- Tab content: restaurants list -->
+  <div id="ft-restaurants" class="ftab-content active">
+    <div id="farmers-list"></div>
+  </div>
+
+  <!-- Tab content: checklist -->
+  <div id="ft-checklist" class="ftab-content">
+    <div id="checklist-wrap"></div>
+  </div>
+
+  <!-- Tab content: performance -->
+  <div id="ft-performance" class="ftab-content">
+    <div class="g2 mb16">
+      <div class="card">
+        <div class="ct">🏆 Performance por farmer</div>
+        <div class="cw"><canvas id="ch-farmer-perf"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="ct">📈 Evolución por farmer</div>
+        <div class="cw"><canvas id="ch-farmer-hist"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab content: premios -->
+  <div id="ft-premios" class="ftab-content">
+    <div id="premios-wrap"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════ VIEW: REPORT ══════════════════════════ -->
+<div id="view-report" class="view">
+  <div class="fbet mb16">
+    <h2 style="font-size:18px;font-weight:800">📋 Informe de Restaurante</h2>
+    <div style="display:flex;gap:8px;align-items:center">
+      <select id="report-sel" onchange="renderReport(this.value)" style="width:220px">
+        <option value="">— Selecciona restaurante —</option>
+      </select>
+      <button class="btn btn-s btn-sm no-print" onclick="window.print()">🖨️ Imprimir / PDF</button>
+    </div>
+  </div>
+  <div id="report-content"></div>
+</div>
+
+<!-- ══════════════════════════ VIEW: UPLOAD ══════════════════════════ -->
+<div id="view-upload" class="view">
+  <h2 style="font-size:18px;font-weight:800;margin-bottom:16px">📤 Subir Excel de Pedidos</h2>
+
+  <!-- Upload zone (admin only) -->
+  <div id="admin-upload-zone">
+    <div id="uz" class="card mb16"
+         ondragover="event.preventDefault();this.classList.add('drag')"
+         ondragleave="this.classList.remove('drag')"
+         ondrop="event.preventDefault();this.classList.remove('drag');handleFile(event.dataTransfer.files[0])">
+      <div style="font-size:40px;margin-bottom:12px">📊</div>
+      <div style="font-size:16px;font-weight:700;margin-bottom:6px">Arrastra el Excel aquí</div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:18px">o haz clic para seleccionar</div>
+      <button class="btn btn-p" onclick="document.getElementById('fi').click()">Seleccionar archivo</button>
+    </div>
+    <input type="file" id="fi" accept=".xlsx,.xls" onchange="handleFile(this.files[0])" style="display:none">
+  </div><!-- /admin-upload-zone -->
+
+  <div id="farmer-upload-msg" style="display:none;background:rgba(164,164,255,.08);border:1px solid rgba(164,164,255,.25);border-radius:12px;padding:28px;text-align:center;margin-bottom:16px">
+    <div style="font-size:32px;margin-bottom:10px">☁️</div>
+    <div style="font-size:15px;font-weight:700;margin-bottom:6px">Datos sincronizados desde la nube</div>
+    <div style="font-size:13px;color:var(--text2)">Los datos de pedidos los sube el administrador. Tus configuraciones (farmers, checklist, fees) se sincronizan automáticamente.</div>
+  </div>
+
+  <!-- Períodos disponibles en la nube -->
+  <div id="cloud-periods" class="card mb16" style="display:none"></div>
+
+  <!-- Status message -->
+  <div id="ustatus"></div>
+
+  <!-- Demo data -->
+  <div class="card mt16">
+    <div class="ct mb12">🧪 Datos de prueba</div>
+    <p class="ts tm mb12">Carga datos de ejemplo para explorar el dashboard sin un Excel real.</p>
+    <button class="btn btn-s" onclick="loadDemo()">Cargar datos demo</button>
+  </div>
+</div>
+
+<!-- App logic -->
+<script src="app.js"></script>
+</body>
+</html>

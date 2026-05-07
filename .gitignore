@@ -1,0 +1,15 @@
+# Environment variables — NEVER commit this file
+.env
+
+# Generated Firebase config — contains credentials, never commit
+public/firebase-config.js
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+Thumbs.db
