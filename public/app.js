@@ -410,9 +410,11 @@ function prevData(name){
 }
 
 function renderHistCard(){
-  const hc=document.getElementById('hcard'), hl=document.getElementById('hlist');
+  const hc=document.getElementById('hist-card')||document.getElementById('hcard');
+  const hl=document.getElementById('hist-months-list')||document.getElementById('hlist');
   const keys=Object.keys(HISTORY).sort().reverse();
-  if(!keys.length){hc.style.display='none';return;}
+  if(!keys.length){ if(hc) hc.style.display='none'; return; }
+  if(!hc||!hl) return;
   hc.style.display='block';
   hl.innerHTML=keys.map(k=>{
     const rn=Object.keys(HISTORY[k]).length;
