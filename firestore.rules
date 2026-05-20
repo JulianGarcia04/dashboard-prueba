@@ -1,0 +1,18 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isAdmin() {
+      return isSignedIn()
+        && request.auth.token.email in ['product@menupp.co'];
+    }
+    match /config/{doc} {
+      allow read: if isSignedIn();
+      // Admin: history, orders_meta y todo lo demás
+      allow write: if isAdmin()
+        || (isSignedIn() && doc in ['farmers', 'fees', 'pay_st', 'ck_data', 'manual_rests']);
+    }
+  }
+}

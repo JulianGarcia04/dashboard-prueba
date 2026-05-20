@@ -287,13 +287,16 @@
 
   <!-- Demo data -->
   <div class="card mt16">
-    <div class="ct mb12">🧪 Datos de prueba</div>
-    <p class="ts tm mb12">Carga datos de ejemplo para explorar el dashboard sin un Excel real.</p>
-    <button class="btn btn-s" onclick="loadDemo()">Cargar datos demo</button>
+    <div class="ct mb12">🧪 Datos de prueba / recarga</div>
+    <p class="ts tm mb12">Carga datos demo o vuelve a traer pedidos desde Cloud Storage.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-s" onclick="loadDemo()">Cargar datos demo</button>
+      <button class="btn btn-s" onclick="bootstrapOrders().then(ok=>{if(!ok)showStatus('error','No se encontraron pedidos en la nube')})">☁️ Recargar desde Storage</button>
+    </div>
   </div>
 </div>
 
 <!-- App logic -->
-<script src="app.js"></script>
+<script src="app.js?v=3"></script>
 </body>
 </html>

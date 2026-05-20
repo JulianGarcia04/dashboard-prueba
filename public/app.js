@@ -78,20 +78,41 @@ async function doLogout(){
 
 // Enter en inputs de login
 document.addEventListener('DOMContentLoaded',()=>{
-  document.getElementById('li-pass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
-  document.getElementById('li-email').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('li-pass').focus();});
+  const liPass=$id('li-pass'), liEmail=$id('li-email');
+  if(liPass) liPass.addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+  if(liEmail) liEmail.addEventListener('keydown',e=>{if(e.key==='Enter')liPass?.focus();});
   initFirebase();
+  // Mostrar datos del caché local de inmediato (no esperar Firebase)
+  if(restoreOrdersFromCache()){
+    normalizeOrderDates();
+    refreshDashboard({forceGlobal:true});
+  }
 });
 
 // ── Guardar en Firestore (debounced) ──────────────────────────────────────────
 const _saveTimers={};
+// Docs que solo el admin puede escribir (reglas Firestore: product@menupp.co)
+const CLOUD_ADMIN_KEYS=new Set(['history','orders_meta']);
+
+function canCloudWrite(key){
+  if(!fbDb||!currentUser) return false;
+  if(CLOUD_ADMIN_KEYS.has(key)) return isAdmin;
+  return true; // farmers: farmers, fees, pay_st, ck_data, manual_rests
+}
+
 function cloudSave(key, data){
   LS.set(key, data); // cache local inmediato
-  if(!fbDb||!currentUser) return;
+  if(!canCloudWrite(key)) return;
   clearTimeout(_saveTimers[key]);
   _saveTimers[key]=setTimeout(async()=>{
     try{ await fbDb.collection('config').doc(key).set({data}); }
-    catch(e){ console.warn('cloudSave error',key,e); }
+    catch(e){
+      if(e.code==='permission-denied'){
+        console.warn(`cloudSave: sin permiso para "${key}" (${currentUser?.email}). Revisa firestore.rules en Firebase.`);
+        return;
+      }
+      console.warn('cloudSave error',key,e);
+    }
   }, 800);
 }
 
@@ -113,9 +134,124 @@ async function loadCloudData(){
         if(keys[i]==='manual_rests')MANUAL_RESTS=val;
       }
     });
-    // Cargar pedidos desde Storage
-    await loadCloudOrders();
+    // Cargar pedidos (Storage JSON → caché local → Excel en Storage)
+    await bootstrapOrders();
   }catch(e){ console.warn('loadCloudData error',e); }
+}
+
+function cacheOrdersLocally(){
+  if(!S.orders.length) return;
+  try{
+    LS.set('orders_cache',{
+      orders:S.orders,
+      details:S.details,
+      period:S.currentPeriod,
+      saved:Date.now()
+    });
+  }catch(e){ console.warn('cacheOrdersLocally',e); }
+}
+
+function restoreOrdersFromCache(){
+  try{
+    const c=LS.get('orders_cache');
+    if(!c||!Array.isArray(c.orders)||!c.orders.length) return false;
+    S.orders=c.orders.map(o=>({
+      ...o,
+      fecha:o.fecha?(o.fecha instanceof Date?o.fecha:new Date(o.fecha)):null
+    }));
+    S.details=c.details||[];
+    S.currentPeriod=c.period||null;
+    return true;
+  }catch(e){ return false; }
+}
+
+function normalizeOrderDates(){
+  S.orders.forEach(o=>{
+    if(o.fecha&&typeof o.fecha==='string') o.fecha=new Date(o.fecha);
+    else if(o.fecha&&!(o.fecha instanceof Date)) o.fecha=pDate(o.fecha);
+  });
+}
+
+/** Refresca KPIs, gráficas y la vista activa tras cargar pedidos */
+function refreshDashboard(opts={}){
+  if(!S.orders.length) return;
+  saveHistory();
+  cacheOrdersLocally();
+  populateRstSel();
+  renderHistCard();
+  renderCloudPeriods();
+  const activeView=opts.forceGlobal?'global':
+    $id('view-cobros')?.classList.contains('active')?'cobros':
+    $id('view-farmers')?.classList.contains('active')?'farmers':
+    $id('view-report')?.classList.contains('active')?'report':
+    $id('view-upload')?.classList.contains('active')?'upload':
+    'global';
+  showView(activeView);
+}
+
+function applyOrdersPayload(data, periodLabel){
+  S.orders=Array.isArray(data.orders)?data.orders:(Array.isArray(data)?data:[]);
+  S.details=data.details||[];
+  S.currentPeriod=data.period||periodLabel||S.currentPeriod;
+  if(!S.orders.length) return false;
+  normalizeOrderDates();
+  return true;
+}
+
+async function loadCloudOrdersFromList(period){
+  if(!fbStorage) return false;
+  try{
+    const list=await fbStorage.ref('orders').listAll();
+    const files=list.items.filter(i=>i.name.endsWith('.json'));
+    if(!files.length) return false;
+    files.sort((a,b)=>b.name.localeCompare(a.name));
+    const want=period?`${period}.json`:null;
+    const file=want?(files.find(f=>f.name===want)||files[0]):files[0];
+    const url=await file.getDownloadURL();
+    const resp=await fetch(url);
+    if(!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data=await resp.json();
+    const label=file.name.replace(/\.json$/,'');
+    if(!applyOrdersPayload(data,label)) return false;
+    refreshDashboard({forceGlobal:true});
+    showStatus('ok',`☁️ ${S.orders.length.toLocaleString()} pedidos · ${[...new Set(S.orders.map(o=>o.rest))].length} restaurantes · ${S.currentPeriod}`);
+    return true;
+  }catch(e){
+    console.warn('loadCloudOrdersFromList:',e);
+    return false;
+  }
+}
+
+async function bootstrapOrders(period){
+  if(await loadCloudOrders(period)) return true;
+  if(await loadCloudOrdersFromList(period)) return true;
+  if(restoreOrdersFromCache()){
+    normalizeOrderDates();
+    refreshDashboard({forceGlobal:true});
+    showStatus('ok',`📦 ${S.orders.length.toLocaleString()} pedidos · caché local · ${S.currentPeriod||''}`);
+    return true;
+  }
+  if(await loadLatestExcelFromStorage()) return true;
+  showStatus('error','No se pudieron cargar pedidos. Sube un Excel o usa ☁️ Recargar desde Storage.');
+  return false;
+}
+
+async function loadLatestExcelFromStorage(){
+  if(!fbStorage||!currentUser) return false;
+  try{
+    const list=await fbStorage.ref('excel-uploads').listAll();
+    if(!list.items.length) return false;
+    const latest=list.items.sort((a,b)=>b.name.localeCompare(a.name))[0];
+    const url=await latest.getDownloadURL();
+    const buf=await downloadExcelFromFirebase(url);
+    parseExcel(buf, latest.name.replace(/^\d+-/,''));
+    if(S.orders.length){
+      refreshDashboard({forceGlobal:true});
+      showStatus('ok',`📊 Excel desde Storage · ${S.orders.length.toLocaleString()} pedidos · ${S.currentPeriod}`);
+      return true;
+    }
+  }catch(e){ console.warn('loadLatestExcelFromStorage:',e); }
+  return false;
 }
 
 // ── Pedidos en Firebase Storage ───────────────────────────────────────────────
@@ -133,28 +269,32 @@ async function saveCloudOrders(){
 }
 
 async function loadCloudOrders(period){
-  if(!fbStorage) return;
+  if(!fbStorage) return false;
   try{
-    const metaSnap=await fbDb.collection('config').doc('orders_meta').get();
-    const meta=metaSnap.exists?metaSnap.data():null;
-    if(!meta) return;
-    const target=period||meta.latest;
-    if(!target) return;
-    const url=await fbStorage.ref(`orders/${target}.json`).getDownloadURL();
-    const resp=await fetch(url);
-    const data=await resp.json();
-    S.orders=data.orders||[];
-    S.details=data.details||[];
-    S.currentPeriod=data.period||target;
-    if(S.orders.length){
-      S.orders.forEach(o=>{if(o.fecha&&typeof o.fecha==='string')o.fecha=new Date(o.fecha);});
-      saveHistory(); populateRstSel();
-      showStatus('ok',`☁️ ${S.orders.length.toLocaleString()} pedidos · ${[...new Set(S.orders.map(o=>o.rest))].length} restaurantes · ${S.currentPeriod}`);
-      renderHistCard(); renderCloudPeriods(); showView('global');
+    let target=period||null;
+    if(fbDb){
+      const metaSnap=await fbDb.collection('config').doc('orders_meta').get();
+      const meta=metaSnap.exists?metaSnap.data():null;
+      if(meta) target=target||meta.latest;
     }
-  }catch(e){
-    if(e.code!=='storage/object-not-found') console.warn('loadCloudOrders error',e);
-  }
+    if(target){
+      try{
+        const url=await fbStorage.ref(`orders/${target}.json`).getDownloadURL();
+        const resp=await fetch(url);
+        if(resp.ok){
+          const data=await resp.json();
+          if(applyOrdersPayload(data,target)){
+            refreshDashboard({forceGlobal:true});
+            showStatus('ok',`☁️ ${S.orders.length.toLocaleString()} pedidos · ${[...new Set(S.orders.map(o=>o.rest))].length} restaurantes · ${S.currentPeriod}`);
+            return true;
+          }
+        }
+      }catch(e){
+        if(e.code!=='storage/object-not-found') console.warn('loadCloudOrders meta path:',e);
+      }
+    }
+  }catch(e){ console.warn('loadCloudOrders error',e); }
+  return await loadCloudOrdersFromList(period);
 }
 
 function renderCloudPeriods(){
@@ -227,27 +367,50 @@ let leafMap = null;
 let reportMap = null;
 let tableData=[], sortCol=0, sortAsc=false, filterQ='', filterCity='';
 
+// ═══════════════════ DOM HELPERS (null-safe) ═══════════════════
+function $id(id){ return document.getElementById(id); }
+function setText(id, txt){ const el=$id(id); if(el) el.textContent = txt; return el; }
+function setHTML(id, html){ const el=$id(id); if(el) el.innerHTML = html; return el; }
+function setOuterHTML(id, html){ const el=$id(id); if(el) el.outerHTML = html; return el; }
+function setDisplay(id, v){ const el=$id(id); if(el) el.style.display = v; return el; }
+function setVal(id, v){ const el=$id(id); if(el) el.value = v; return el; }
+
 // ═══════════════════ NAV ═══════════════════
+function deferCharts(fn){ requestAnimationFrame(()=>setTimeout(fn,50)); }
+
 function showView(id){
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.querySelectorAll('.nb').forEach(b=>b.classList.remove('active'));
-  document.getElementById('view-'+id).classList.add('active');
+  const view=$id('view-'+id);
+  if(view) view.classList.add('active');
   const btn = document.querySelector(`.nb[onclick="showView('${id}')"]`);
   if(btn) btn.classList.add('active');
   if(id==='global') renderGlobal();
-  if(id==='cobros') renderCobros();
-  if(id==='farmers') renderFarmers();
+  else if(id==='cobros') renderCobros();
+  else if(id==='farmers') renderFarmers();
+  else if(id==='report'){
+    const sel=$id('report-sel');
+    if(sel&&sel.value) renderReport(sel.value);
+    else setHTML('report-content','<div class="nodata">Selecciona un restaurante arriba para ver el informe.</div>');
+  }
+  if(id==='global'||id==='cobros'||id==='farmers'){
+    deferCharts(resizeAllCharts);
+  }
 }
 
 function showFTab(id){
   document.querySelectorAll('.ftab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.ftab-content').forEach(c=>c.classList.remove('active'));
-  document.getElementById('ft-'+id).classList.add('active');
-  event.currentTarget.classList.add('active');
+  const panel=$id('ft-'+id);
+  if(panel) panel.classList.add('active');
+  if(typeof event!=='undefined'&&event&&event.currentTarget) event.currentTarget.classList.add('active');
   if(id==='checklist') renderChecklist();
   if(id==='performance') renderPerformance();
   if(id==='premios') renderPremios();
 }
+
+function applyFilter(){ sortAndRender(); }
+function openAddRest(){ toggleAddForm(); }
 
 // ═══════════════════ TIER ═══════════════════
 function getTier(n){
@@ -298,10 +461,7 @@ function parseExcelFile(buf, fname) {
 }
 
 function updateDashboard() {
-  saveHistory();
-  populateRstSel();
-  renderHistCard();
-  showView('global');
+  refreshDashboard({forceGlobal:true});
 }
 
 function handleFile(file) {
@@ -382,7 +542,8 @@ function parseExcel(buf,fname){
     } else S.currentPeriod=fname.match(/(\d{4})-(\d{2})/)?.[0]||new Date().toISOString().slice(0,7);
     saveHistory(); populateRstSel();
     showStatus('ok',`✅ ${S.orders.length.toLocaleString()} pedidos · ${[...new Set(S.orders.map(o=>o.rest))].length} restaurantes · ${S.currentPeriod}`);
-    renderHistCard(); showView('global');
+    cacheOrdersLocally();
+    renderHistCard(); refreshDashboard({forceGlobal:true});
     // Subir a la nube para que todos los farmers vean los datos
     saveCloudOrders().catch(e=>console.warn('saveCloudOrders:',e));
   }catch(err){showStatus('error','Error: '+err.message);console.error(err);}
@@ -390,7 +551,7 @@ function parseExcel(buf,fname){
 
 function pDate(v){ if(!v)return null; if(v instanceof Date)return v; if(typeof v==='number'){return new Date((v-25569)*86400000);} const d=new Date(v); return isNaN(d)?null:d; }
 function pNum(v){ if(v===''||v==null)return 0; if(typeof v==='number')return v; return parseFloat(String(v).replace(/[^0-9.\-]/g,''))||0; }
-function showStatus(t,m){ document.getElementById('ustatus').innerHTML=`<div class="card" style="border-color:${t==='ok'?'var(--green)':'var(--red)'}">${m}</div>`; }
+function showStatus(t,m){ setHTML('ustatus',`<div class="card" style="border-color:${t==='ok'?'var(--green)':'var(--red)'}">${m}</div>`); }
 
 function saveHistory(){
   const mk=S.currentPeriod; if(!mk)return;
@@ -599,7 +760,8 @@ function renderRestEvol(){
 
 let _histRankSort='last';
 function renderHistRanking(months,mlabels,allRests){
-  const el=document.getElementById('hist-ranking');
+  const el=$id('hist-ranking');
+  if(!el)return;
   if(months.length<1){el.innerHTML='<div class="nodata" style="padding:16px">Carga al menos 1 mes de datos</div>';return;}
   const lastM=months[months.length-1];
   const prevM=months.length>=2?months[months.length-2]:null;
@@ -680,19 +842,19 @@ function renderHistRanking(months,mlabels,allRests){
 }
 
 function populateRstSel(){ populateCityFilter();
-  const sel=document.getElementById('rst-sel');
   const names=[...new Set(S.orders.map(o=>o.rest))].sort();
-  if(sel){
-    sel.innerHTML='<option value="">— Selecciona un restaurante —</option>'+names.map(n=>`<option value="${n}">${n}</option>`).join('');
-  }
-  // Populate checklist KAM filter
-  const cf=document.getElementById('ck-filter');
+  const opts='<option value="">— Selecciona un restaurante —</option>'+names.map(n=>`<option value="${n}">${n}</option>`).join('');
+  const sel=$id('rst-sel');
+  if(sel) sel.innerHTML=opts;
+  const rpt=$id('report-sel');
+  if(rpt) rpt.innerHTML=opts;
   const farmers=[...new Set(Object.values(FARMERS))].filter(Boolean).sort();
-  if(cf){
-    cf.innerHTML='<option value="">Todos los restaurantes</option>'+farmers.map(f=>`<option value="${f}">${f}</option>`).join('');
-  }
-  // Populate farmer download selector
-  const dlSel=document.getElementById('dl-farmer-sel');
+  const farmerOpts='<option value="">Todos los farmers</option>'+farmers.map(f=>`<option value="${f}">${f}</option>`).join('');
+  const fs=$id('farmer-sel');
+  if(fs) fs.innerHTML=farmerOpts;
+  const cf=$id('ck-filter');
+  if(cf) cf.innerHTML='<option value="">Todos los restaurantes</option>'+farmers.map(f=>`<option value="${f}">${f}</option>`).join('');
+  const dlSel=$id('dl-farmer-sel');
   if(dlSel) dlSel.innerHTML='<option value="">Todos los restaurantes</option>'+farmers.map(f=>`<option value="${f}">👤 ${f}</option>`).join('');
 }
 
@@ -713,41 +875,73 @@ function fmt(n){ return (n||0).toLocaleString('es-CO',{maximumFractionDigits:0})
 function mDate(ym){ const [y,m]=ym.split('-').map(Number); return new Date(y,m-1,1); }
 function fmtCOP(n){ return '$'+fmt(n); }
 function fmtPct(n,tot){ return tot?((n/tot)*100).toFixed(1)+'%':'0%'; }
-function destroyChart(id){ if(charts[id]){charts[id].destroy();delete charts[id];} }
+function destroyChart(id){
+  if(charts[id]){ try{ charts[id].destroy(); }catch(_e){} delete charts[id]; }
+  const c=$id(id);
+  if(c&&c.parentNode){
+    const n=c.cloneNode(false);
+    c.parentNode.replaceChild(n,c);
+  }
+}
+
+function resetCanvas(id){
+  const c=$id(id);
+  if(c&&c.parentNode){ const n=c.cloneNode(false); c.parentNode.replaceChild(n,c); }
+}
 function scoreColor(s){ if(s>=90)return'#7070D0'; if(s>=70)return'#1A8A50'; if(s>=50)return'#A07A00'; return'#C0392B'; }
 function stateBadge(st){ const m={Activo:'bg',Construcción:'by','Sin capacitar':'br'}; return `<span class="badge ${m[st]||'bgr'}">${st}</span>`; }
 
 function mkChart(id,type,labels,datasets,opts={}){
   destroyChart(id);
-  const ctx=document.getElementById(id); if(!ctx)return;
-  const isBar=type==='bar'||type==='line';
-  charts[id]=new Chart(ctx,{
-    type,
-    data:{labels,datasets},
-    options:{
-      responsive:true,maintainAspectRatio:false,
-      plugins:{
-        legend:{labels:{color:'#C4D2E0',font:{family:"'Plus Jakarta Sans',sans-serif",size:11}},...(opts.legendOpts||{})},
-        tooltip:{callbacks:{label:c=>opts.tlabel?opts.tlabel(c):c.formattedValue}}
-      },
-      scales:isBar?{
-        x:{ticks:{color:'#C4D2E0',font:{size:11},maxRotation:45},grid:{color:'rgba(7,28,45,.08)'},...(opts.xOpts||{})},
-        y:{ticks:{color:'#C4D2E0',font:{size:11}},grid:{color:'rgba(7,28,45,.08)'},...(opts.yOpts||{})}
-      }:{},
-      ...(opts.extra||{})
-    }
-  });
+  const ctx=$id(id);
+  if(!ctx) return null;
+  if(typeof Chart==='undefined'){
+    const box=ctx.parentElement;
+    if(box) box.insertAdjacentHTML('beforeend','<div class="nodata" style="padding:12px">Chart.js no cargó — desactiva el bloqueador de anuncios.</div>');
+    return null;
+  }
+  try{
+    const isBar=type==='bar'||type==='line';
+    charts[id]=new Chart(ctx,{
+      type,
+      data:{labels,datasets},
+      options:{
+        responsive:true,maintainAspectRatio:false,
+        plugins:{
+          legend:{labels:{color:'#3A5168',font:{family:"'Plus Jakarta Sans',sans-serif",size:11}},...(opts.legendOpts||{})},
+          tooltip:{callbacks:{label:c=>opts.tlabel?opts.tlabel(c):c.formattedValue}}
+        },
+        scales:isBar?{
+          x:{ticks:{color:'#3A5168',font:{size:11},maxRotation:45},grid:{color:'rgba(7,28,45,.08)'},...(opts.xOpts||{})},
+          y:{ticks:{color:'#3A5168',font:{size:11}},grid:{color:'rgba(7,28,45,.08)'},...(opts.yOpts||{})}
+        }:{},
+        ...(opts.extra||{})
+      }
+    });
+    return charts[id];
+  }catch(e){ console.warn('mkChart error',id,e); return null; }
+}
+
+function resizeAllCharts(){
+  Object.values(charts).forEach(c=>{ try{ c.resize(); }catch(_e){} });
+  if(leafMap) try{ leafMap.invalidateSize(); }catch(_e){}
 }
 
 // ═══════════════════ GLOBAL VIEW ═══════════════════
-function $id(id){ return document.getElementById(id); }
-function setText(id, txt){ const el=$id(id); if(el) el.textContent = txt; return el; }
-function setHTML(id, html){ const el=$id(id); if(el) el.innerHTML = html; return el; }
-function setOuterHTML(id, html){ const el=$id(id); if(el) el.outerHTML = html; return el; }
-function setDisplay(id, v){ const el=$id(id); if(el) el.style.display = v; return el; }
-
 function renderGlobal(){
-  if(!S.orders.length)return;
+  if(!S.orders.length){
+    setHTML('kpi-bar','<div class="nodata" style="grid-column:1/-1">Sin pedidos cargados. Ve a <strong>Subir Excel</strong> → ☁️ Recargar desde Storage.</div>');
+    setHTML('g-tbody','');
+    return;
+  }
+  renderGlobalKPIs();
+  renderGlobalTable();
+  renderGlobalSidePanels();
+  renderGlobalCharts();
+  deferCharts(()=>{ renderGlobalCharts(); resizeAllCharts(); });
+}
+
+function renderGlobalKPIs(){
   const ords=S.orders, cobs=ords.filter(isCob);
   const total=ords.length, cobN=cobs.length;
   const ventas=cobs.reduce((s,o)=>s+o.total,0), ticket=cobN?ventas/cobN:0;
@@ -755,63 +949,77 @@ function renderGlobal(){
   const prevKeys=Object.keys(HISTORY).sort(), curIdx=prevKeys.indexOf(S.currentPeriod);
   let prevCob=0,prevVen=0;
   if(curIdx>0){const p=HISTORY[prevKeys[curIdx-1]];prevCob=Object.values(p).reduce((s,v)=>s+v.cobrable,0);prevVen=Object.values(p).reduce((s,v)=>s+v.ventas,0);}
-  const delta=(cur,prev)=>prev?`<div class="ks ${cur>=prev?'up':'dn'}">${cur>=prev?'▲':'▼'} ${Math.abs(((cur-prev)/prev*100)).toFixed(1)}% vs ant.</div>`:''
-  setText('g-title',`Dashboard Global — ${S.currentPeriod}`);
-  setText('g-sub',`${fmt(total)} pedidos · ${rests} restaurantes`);
-  setText('g-tot',fmt(total));
-  setText('g-cob',fmt(cobN));
-  setText('g-ven',fmtCOP(ventas));
-  setText('g-tck',fmtCOP(ticket));
-  setText('g-rst',String(rests));
+  const delta=(cur,prev)=>prev?`<div class="ks ${cur>=prev?'up':'dn'}">${cur>=prev?'▲':'▼'} ${Math.abs(((cur-prev)/prev*100)).toFixed(1)}% vs ant.</div>`:'';
   const armiN=ords.filter(isArmi).length;
   const armiRev=armiN*ARMI_FEE;
-  setText('g-armi',fmt(armiN));
-  setText('g-armi-fee',armiN?fmtCOP(armiRev)+' total':'Sin pedidos Armi');
-  setOuterHTML('g-cob-d',`<div class="ks" id="g-cob-d">${delta(cobN,prevCob)}</div>`);
-  setOuterHTML('g-ven-d',`<div class="ks" id="g-ven-d">${delta(ventas,prevVen)}</div>`);
-  // Daily chart
-  const bd={};
-  ords.forEach(o=>{ if(!o.fecha)return; const k=o.fecha.toISOString().slice(0,10); if(!bd[k])bd[k]={t:0,c:0}; bd[k].t++; if(isCob(o))bd[k].c++; });
-  const days=Object.keys(bd).sort();
-  mkChart('ch-daily','bar',days,[
-    {label:'Cobrables',data:days.map(d=>bd[d].c),backgroundColor:'rgba(255,52,100,.75)',borderRadius:3},
-    {label:'No cob.',data:days.map(d=>bd[d].t-bd[d].c),backgroundColor:'rgba(255,255,255,.07)',borderRadius:3}
-  ],{extra:{scales:{x:{stacked:true,ticks:{color:'#C4D2E0',font:{size:10},maxRotation:45},grid:{color:'rgba(7,28,45,.08)'}},y:{stacked:true,ticks:{color:'#C4D2E0',font:{size:11}},grid:{color:'rgba(7,28,45,.08)'}}}}});
-  // Top 15
+  setHTML('kpi-bar',`
+    <div class="kpi"><div class="kl">Pedidos totales</div><div class="kv">${fmt(total)}</div><div class="ks">${S.currentPeriod||''}</div></div>
+    <div class="kpi"><div class="kl">Cobrables</div><div class="kv tp">${fmt(cobN)}</div>${delta(cobN,prevCob)}</div>
+    <div class="kpi"><div class="kl">Ventas</div><div class="kv">${fmtCOP(ventas)}</div>${delta(ventas,prevVen)}</div>
+    <div class="kpi"><div class="kl">Ticket prom.</div><div class="kv">${fmtCOP(ticket)}</div></div>
+    <div class="kpi"><div class="kl">Restaurantes</div><div class="kv">${rests}</div>${armiN?`<div class="ks">Armi: ${fmt(armiN)} · ${fmtCOP(armiRev)}</div>`:''}</div>
+  `);
+}
+
+function renderGlobalSidePanels(){
+  try{
+    const months=Object.keys(HISTORY).sort();
+    const mlabels=months.map(m=>{const d=mDate(m);return d.toLocaleString('es-CO',{month:'short',year:'2-digit'});});
+    const allRests=[...new Set(months.flatMap(m=>Object.keys(HISTORY[m]||{})))].sort();
+    renderHistRanking(months,mlabels,allRests);
+    renderGrowthDecomp(months,mlabels);
+    if(months.length>=2) setDisplay('hist-card','block');
+    else setDisplay('hist-card','none');
+  }catch(e){ console.warn('renderGlobalSidePanels',e); }
+}
+
+function renderGlobalCharts(){
+  if(!S.orders.length) return;
+  const ords=S.orders, cobs=ords.filter(isCob);
+  const wks={1:[],2:[],3:[],4:[],5:[]};
+  cobs.forEach(o=>{if(!o.fecha)return;const d=o.fecha.getDate();wks[d<=7?1:d<=14?2:d<=21?3:d<=28?4:5].push(o);});
+  mkChart('ch-week','bar',['Sem 1','Sem 2','Sem 3','Sem 4','Sem 5'],[
+    {label:'Cobrables',data:[1,2,3,4,5].map(w=>wks[w].length),backgroundColor:'rgba(255,52,100,.75)',borderRadius:4}
+  ],{legendOpts:{display:false}});
+
   const br={};
   cobs.forEach(o=>{br[o.rest]=(br[o.rest]||0)+1;});
   const top=Object.entries(br).sort((a,b)=>b[1]-a[1]).slice(0,15);
-  mkChart('ch-top15','bar',top.map(([n])=>n.length>18?n.slice(0,16)+'…':n),[
+  mkChart('ch-top','bar',top.map(([n])=>n.length>18?n.slice(0,16)+'…':n),[
     {label:'Cobrables',data:top.map(([,v])=>v),backgroundColor:COLORS,borderRadius:4}
-  ],{legendOpts:{display:false},extra:{indexAxis:'y',scales:{x:{ticks:{color:'#C4D2E0',font:{size:11}},grid:{color:'rgba(7,28,45,.08)'}},y:{ticks:{color:'#C4D2E0',font:{size:10}},grid:{color:'rgba(7,28,45,.08)'}}}}});
-  // Donuts
-  const be={},bt={},bp={};
-  ords.forEach(o=>{be[o.estado]=(be[o.estado]||0)+1;bt[o.tipo||'Sin tipo']=(bt[o.tipo||'Sin tipo']||0)+1;});
-  cobs.forEach(o=>{bp[o.pago||'Sin dato']=(bp[o.pago||'Sin dato']||0)+1;});
-  mkChart('ch-est','doughnut',Object.keys(be),[{data:Object.values(be),backgroundColor:COLORS}],{legendOpts:{position:'bottom',labels:{font:{size:10}}}});
-  mkChart('ch-tipo','doughnut',Object.keys(bt),[{data:Object.values(bt),backgroundColor:COLORS}],{legendOpts:{position:'bottom',labels:{font:{size:10}}}});
-  mkChart('ch-pago','doughnut',Object.keys(bp),[{data:Object.values(bp),backgroundColor:COLORS}],{legendOpts:{position:'bottom',labels:{font:{size:10}}}});
-  // Distribución por Tier
+  ],{legendOpts:{display:false},extra:{indexAxis:'y',scales:{x:{ticks:{color:'#3A5168',font:{size:11}},grid:{color:'rgba(7,28,45,.08)'}},y:{ticks:{color:'#3A5168',font:{size:10}},grid:{color:'rgba(7,28,45,.08)'}}}}});
+
   const rg2=groupBy();
-  const tierCounts={1:0,2:0,3:0,4:0}, tierDisc={1:0,2:0,3:0,4:0};
-  Object.entries(rg2).forEach(([name,ords])=>{
-    const c=ords.filter(isCob).length, t=getTier(c).tier;
-    tierCounts[t]++;
-    if(has100Score(name)) tierDisc[t]++;
+  const tierCounts={1:0,2:0,3:0,4:0};
+  Object.entries(rg2).forEach(([,o])=>{tierCounts[getTier(o.filter(isCob).length).tier]++;});
+  mkChart('ch-tier','doughnut',['Tier 1','Tier 2','Tier 3','Tier 4'],[
+    {data:[1,2,3,4].map(t=>tierCounts[t]),backgroundColor:['#FF4057','#C07820','#7070D0','#1A8A50']}
+  ],{legendOpts:{position:'bottom',labels:{font:{size:10}}}});
+
+  const fm={};
+  Object.entries(rg2).forEach(([name,o])=>{
+    const f=FARMERS[name]||'Sin asignar';
+    fm[f]=(fm[f]||0)+o.filter(isCob).length;
   });
-  const tColors={1:'var(--t1)',2:'var(--t2)',3:'var(--t3)',4:'var(--t4)'};
-  const tRanges={1:'< 500 ped.',2:'500–999',3:'1 000–4 999',4:'5 000+'};
-  setDisplay('tier-dist-card','');
-  setHTML('tier-dist-content',`
-    <div class="g4">${[1,2,3,4].map(t=>`
-      <div style="background:var(--surface2);border-radius:10px;padding:16px;border-left:3px solid ${tColors[t]}">
-        <div class="txs tm" style="margin-bottom:4px">Tier ${t} <span style="opacity:.6">(${tRanges[t]})</span></div>
-        <div style="font-size:30px;font-weight:800;color:${tColors[t]};line-height:1">${tierCounts[t]}</div>
-        <div class="txs tm" style="margin-top:3px">restaurante${tierCounts[t]!==1?'s':''}</div>
-        ${tierDisc[t]?`<div class="txs" style="margin-top:6px;color:#2ECC71">⭐ ${tierDisc[t]} con 50% dto.</div>`:''}
-      </div>`).join('')}
-    </div>`);
-  renderGlobalTable();
+  const fe=Object.entries(fm).sort((a,b)=>b[1]-a[1]).slice(0,12);
+  mkChart('ch-farmer','bar',fe.map(([f])=>f.length>14?f.slice(0,12)+'…':f),[
+    {label:'Cobrables',data:fe.map(([,v])=>v),backgroundColor:COLORS,borderRadius:4}
+  ],{legendOpts:{display:false},extra:{indexAxis:'y',scales:{x:{ticks:{color:'#3A5168',font:{size:11}},grid:{color:'rgba(7,28,45,.08)'}},y:{ticks:{color:'#3A5168',font:{size:10}},grid:{color:'rgba(7,28,45,.08)'}}}}});
+
+  const be={};
+  ords.forEach(o=>{be[o.estado]=(be[o.estado]||0)+1;});
+  mkChart('ch-status','doughnut',Object.keys(be),[{data:Object.values(be),backgroundColor:COLORS}],{legendOpts:{position:'bottom',labels:{font:{size:10}}}});
+
+  const months=Object.keys(HISTORY).sort();
+  if(months.length>=2){
+    const mlabels=months.map(m=>{const d=mDate(m);return d.toLocaleString('es-CO',{month:'short',year:'2-digit'});});
+    const totCob=months.map(m=>Object.values(HISTORY[m]||{}).reduce((s,v)=>s+v.cobrable,0));
+    mkChart('ch-hist','line',mlabels,[
+      {label:'Cobrables',data:totCob,borderColor:'#FF4057',backgroundColor:'rgba(255,64,87,.1)',fill:true,tension:0.4,pointRadius:4,pointBackgroundColor:'#FF4057'}
+    ],{tlabel:c=>fmt(c.raw)});
+  }
+
+  setTimeout(()=>initMap(ords),100);
 }
 
 function getRestScore(name){ const d=CK_DATA[name]; if(!d||!d.items)return 0; return SCORE_ITEMS.reduce((s,i)=>s+(d.items[i.k]?i.pts:0),0); }
@@ -850,6 +1058,8 @@ function sortAndRender(){
   let data=[...tableData];
   if(filterQ) data=data.filter(d=>d.name.toLowerCase().includes(filterQ.toLowerCase())||d.farmer.toLowerCase().includes(filterQ.toLowerCase()));
   if(filterCity) data=data.filter(d=>d.ciudad===filterCity);
+  const farmerFilter=($id('farmer-sel')||{}).value||'';
+  if(farmerFilter) data=data.filter(d=>d.farmer===farmerFilter);
   data.sort((a,b)=>{
     const vals=[a.name,a.farmer,a.total,a.cobN,a.canc,a.rech,a.ventas,a.ticket,a.t.tier,a.score,a.state,a.ciudad];
     const bv=[b.name,b.farmer,b.total,b.cobN,b.canc,b.rech,b.ventas,b.ticket,b.t.tier,b.score,b.state,b.ciudad];
@@ -857,8 +1067,7 @@ function sortAndRender(){
     if(typeof av2==='string')return sortAsc?av2.localeCompare(bv2):bv2.localeCompare(av2);
     return sortAsc?av2-bv2:bv2-av2;
   });
-  const rdot={l:'rl',m:'rm',h:'rh2'};
-  document.getElementById('g-tbody').innerHTML=data.map(d=>`<tr>
+  setHTML('g-tbody',data.map(d=>`<tr>
     <td class="bold">${d.name}</td>
     <td>${d.farmer}</td>
     <td>${d.ciudad||'—'}</td>
@@ -872,11 +1081,14 @@ function sortAndRender(){
     <td><span class="bold" style="color:${scoreColor(d.score)}">${d.score}</span><span class="txs tm">/100</span></td>
     <td>${stateBadge(d.state)}</td>
     <td><button class="btn btn-s btn-sm" onclick="drillFromG('${esc(d.name)}')">Ver →</button></td>
-  </tr>`).join('');
+  </tr>`).join(''));
 }
 
 function esc(s){ return s.replace(/'/g,"\\'"); }
-function drillFromG(name){ document.getElementById('rst-sel').value=name; drillRest(name); showView('restaurantes'); }
+function drillFromG(name){
+  setVal('report-sel',name);
+  renderReport(name);
+}
 
 // All known restaurant names (from orders + manual)
 function allRestNames(){
@@ -1182,9 +1394,9 @@ function initMap(ords){
           .bindPopup(`<b>${count} pedido${count>1?'s':''}</b>`).addTo(leafMap);
       });
       if(Object.keys(lm).length>1) leafMap.fitBounds(Object.keys(lm).map(k=>k.split(',').map(Number)),{padding:[20,20]});
-      document.getElementById('map-note').textContent=`${pts.length} pedidos · ${Object.keys(lm).length} ubicaciones`;
+      setText('map-note',`${pts.length} pedidos · ${Object.keys(lm).length} ubicaciones`);
     } else {
-      document.getElementById('map-note').textContent='Sin coordenadas — mostrando Colombia';
+      setText('map-note','Sin coordenadas — mostrando Colombia');
     }
     setTimeout(()=>{if(leafMap)leafMap.invalidateSize();},250);
   }catch(e){console.error('Map:',e);const el=document.getElementById('rest-map');if(el)el.innerHTML='<div class="nodata">Mapa no disponible</div>';}
@@ -1192,8 +1404,10 @@ function initMap(ords){
 
 // ═══════════════════ COBROS ═══════════════════
 function renderCobros(){
-  if(!S.orders.length)return;
-  setText('cob-per',S.currentPeriod||'');
+  if(!S.orders.length){
+    setHTML('cob-kpis','<div class="nodata" style="grid-column:1/-1">Sin pedidos. Recarga desde Storage.</div>');
+    return;
+  }
   const rg=groupBy();
   let totCOP=0,totOrds=0,paid=0,pend=0;
   const rows=[];
@@ -1206,15 +1420,15 @@ function renderCobros(){
     rows.push({name,farmer:FARMERS[name]||'—',cobN,t,fee,fac,ps,armiN,armiFac});
   });
   rows.sort((a,b)=>b.fac-a.fac);
-  setText('cob-total',fmtCOP(totCOP));
-  setText('cob-ords',fmt(totOrds));
-  setText('cob-pend',fmtCOP(pend));
-  setText('cob-paid',fmtCOP(paid));
   const totalArmiN=rows.reduce((s,r)=>s+r.armiN,0);
   const totalArmiFac=totalArmiN*ARMI_FEE;
-  setText('cob-armi-n',fmt(totalArmiN));
-  setText('cob-armi-fee',totalArmiN?fmtCOP(totalArmiFac)+' total':'Sin pedidos Armi');
-  setHTML('cob-tbody',rows.map(r=>{
+  setHTML('cob-kpis',`
+    <div class="kpi"><div class="kl">${S.currentPeriod||'Período'}</div><div class="kv tp">${fmtCOP(totCOP)}</div><div class="ks">Total facturación Menüpp</div></div>
+    <div class="kpi"><div class="kl">Pedidos cobrables</div><div class="kv">${fmt(totOrds)}</div></div>
+    <div class="kpi"><div class="kl">Pendiente</div><div class="kv ty">${fmtCOP(pend)}</div></div>
+    <div class="kpi"><div class="kl">Pagado</div><div class="kv tg">${fmtCOP(paid)}</div>${totalArmiN?`<div class="ks">Armi: ${fmt(totalArmiN)} · ${fmtCOP(totalArmiFac)}</div>`:''}</div>
+  `);
+  const rowHtml=rows.map(r=>{
     const pk=S.currentPeriod+':'+r.name;
     return `<tr>
       <td class="bold">${r.name}</td><td>${r.farmer}</td>
@@ -1231,7 +1445,24 @@ function renderCobros(){
       </select></td>
       <td><input type="text" placeholder="Notas…" value="${r.ps.note||''}" style="width:130px" onchange="updatePN('${esc(pk)}',this.value)"></td>
     </tr>`;
-  }).join(''));
+  }).join('');
+  const table=$id('cob-table');
+  if(table){
+    const thead=table.querySelector('thead');
+    const tbody=table.querySelector('tbody');
+    if(thead) thead.innerHTML='<tr><th>Restaurante</th><th>Farmer</th><th>Cobrables</th><th>Armi</th><th>Armi $</th><th>Tier</th><th>Fee</th><th>Total</th><th>Estado</th><th>Notas</th></tr>';
+    if(tbody) tbody.innerHTML=rowHtml;
+  } else {
+    setHTML('cob-tbody',rowHtml);
+  }
+  const revByTier={1:0,2:0,3:0,4:0};
+  rows.forEach(r=>{revByTier[r.t.tier]+=r.fac;});
+  deferCharts(()=>{
+    mkChart('ch-rev-tier','bar',['Tier 1','Tier 2','Tier 3','Tier 4'],[
+      {label:'Revenue',data:[1,2,3,4].map(t=>revByTier[t]),backgroundColor:['#FF4057','#C07820','#7070D0','#1A8A50'],borderRadius:4}
+    ],{legendOpts:{display:false},tlabel:c=>fmtCOP(c.raw)});
+    resizeAllCharts();
+  });
 }
 function updateFee(n,v,c){ const num=parseFloat(v); if(!isNaN(num)&&num>=0){FEES[n]=num;cloudSave('fees',FEES);} renderCobros(); }
 function updatePS(pk,v){ if(!PAY_ST[pk])PAY_ST[pk]={status:v,note:''}; else PAY_ST[pk].status=v; cloudSave('pay_st',PAY_ST); renderCobros(); }
@@ -1656,40 +1887,32 @@ function dlCSV(rows,fname){ const csv=rows.map(r=>r.map(c=>'"'+String(c||'').rep
 
 // ═══════════════════ FARMERS ═══════════════════
 function renderFarmers(){
-  if(!S.orders.length)return;
+  if(!S.orders.length){
+    setHTML('farmer-tabs','');
+    setHTML('farmers-list','<div class="nodata">Sin pedidos cargados. Recarga desde Storage.</div>');
+    return;
+  }
   const names=[...new Set(S.orders.map(o=>o.rest))].sort();
-  // Assign list
-  setHTML('farmer-list',names.map(n=>`
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;align-items:center">
-      <span class="ts">${n}</span>
-      <input type="text" class="fi" data-rest="${n}" value="${FARMERS[n]||''}" placeholder="Nombre KAM">
-    </div>`).join(''));
-  // Performance
-  const fm={};
-  const rg=groupBy();
-  names.forEach(n=>{
-    const f=FARMERS[n]||'Sin asignar';
-    if(!fm[f])fm[f]={rests:[],cobN:0,ventas:0,prevCob:0};
-    fm[f].rests.push(n);
-    const ords=rg[n]||[];
-    const cob=ords.filter(isCob);
-    fm[f].cobN+=cob.length;
-    fm[f].ventas+=cob.reduce((s,o)=>s+o.total,0);
-    const p=prevData(n); if(p)fm[f].prevCob+=p.cobrable;
-  });
-  const fe=Object.entries(fm).sort((a,b)=>b[1].cobN-a[1].cobN);
-  setHTML('farmer-perf',fe.map(([f,d])=>{
-    const pct=d.prevCob?((d.cobN-d.prevCob)/d.prevCob*100).toFixed(1):null;
-    return `<tr><td class="bold">${f}</td><td>${d.rests.length}</td><td class="tp">${fmt(d.cobN)}</td><td>${fmtCOP(d.ventas)}</td><td>${pct?`<span class="${pct>=0?'tg':'tr'}">${pct>=0?'▲':'▼'}${Math.abs(pct)}%</span>`:'—'}</td></tr>`;
-  }).join(''));
-  requestAnimationFrame(()=>{
-    mkChart('ch-fc','bar',fe.map(([f])=>f),[{label:'Cobrables',data:fe.map(([,d])=>d.cobN),backgroundColor:COLORS,borderRadius:4}],{legendOpts:{display:false}});
-    mkChart('ch-fr','bar',fe.map(([f])=>f),[{label:'Restaurantes',data:fe.map(([,d])=>d.rests.length),backgroundColor:COLORS,borderRadius:4}],{legendOpts:{display:false}});
-  });
-  // Update KAM filter in checklist
-  const cf=$id('ck-filter');
-  const farmers=[...new Set(Object.values(FARMERS))].filter(Boolean).sort();
-  if(cf) cf.innerHTML='<option value="">Todos</option>'+farmers.map(f=>`<option value="${f}">${f}</option>`).join('');
+  setHTML('farmer-tabs',`
+    <button class="ftab active" onclick="showFTab('restaurants')">🏪 Restaurantes</button>
+    <button class="ftab" onclick="showFTab('checklist')">✅ Checklist</button>
+    <button class="ftab" onclick="showFTab('performance')">📊 Performance</button>
+    <button class="ftab" onclick="showFTab('premios')">🏆 Premios</button>
+  `);
+  setHTML('farmers-list',`
+    <div class="card">
+      <div class="ct mb12">Asignación Farmer / KAM por restaurante</div>
+      ${names.map(n=>`
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;align-items:center">
+          <span class="ts">${n}</span>
+          <input type="text" class="fi" data-rest="${n}" value="${FARMERS[n]||''}" placeholder="Nombre KAM">
+        </div>`).join('')}
+      <button class="btn btn-p btn-sm mt8" onclick="saveFarmers()">💾 Guardar farmers</button>
+    </div>
+  `);
+  renderChecklist();
+  renderPerformance();
+  renderPremios();
 }
 
 function saveFarmers(){
@@ -1704,34 +1927,34 @@ function saveFarmers(){
 
 // ═══════════════════ ADD MANUAL REST ═══════════════════
 function toggleAddForm(){
-  const f=document.getElementById('add-rest-form');
-  f.style.display=f.style.display==='none'?'block':'none';
+  const f=$id('add-rest-form');
+  if(f) f.style.display=f.style.display==='none'?'block':'none';
 }
 
-function addManualRest(){
-  const name=document.getElementById('nr-name').value.trim();
-  const farmer=document.getElementById('nr-farmer').value.trim();
+function saveManualRest(){
+  const name=($id('ar-name')||{}).value?.trim();
+  const farmer=($id('ar-farmer')||{}).value?.trim();
   if(!name){alert('El nombre del restaurante es obligatorio');return;}
   MANUAL_RESTS[name]={
     farmer:farmer||'Sin asignar',
-    link:document.getElementById('nr-link').value.trim(),
-    notas:document.getElementById('nr-notas').value.trim(),
-    fecha_cap:document.getElementById('nr-cap').value||null,
-    estado:document.getElementById('nr-estado').value,
+    link:($id('ar-link')||{}).value?.trim()||'',
+    notas:($id('ar-notes')||{}).value?.trim()||'',
+    fecha_cap:null,
+    estado:($id('ar-status')||{}).value||'activo',
     added:new Date().toISOString().slice(0,10)
   };
   if(farmer) FARMERS[name]=farmer;
-  if(document.getElementById('nr-cap').value && !CK_DATA[name]) CK_DATA[name]={fecha_cap:document.getElementById('nr-cap').value,items:{}};
+  if(!CK_DATA[name]) CK_DATA[name]={fecha_cap:'',items:{}};
   cloudSave('manual_rests',MANUAL_RESTS);
   cloudSave('farmers',FARMERS);
   cloudSave('ck_data',CK_DATA);
-  // Clear form
-  ['nr-name','nr-farmer','nr-link','nr-notas','nr-cap'].forEach(id=>document.getElementById(id).value='');
+  ['ar-name','ar-farmer','ar-link','ar-notes'].forEach(id=>{const el=$id(id);if(el)el.value='';});
   toggleAddForm();
-  renderChecklist();
-  // Update KAM filter
+  renderFarmers();
   populateRstSel();
 }
+
+function addManualRest(){ saveManualRest(); }
 
 function deleteManualRest(name){
   if(!confirm(`¿Eliminar "${name}" del seguimiento manual?`))return;
@@ -1742,12 +1965,18 @@ function deleteManualRest(name){
 
 // ═══════════════════ CHECKLIST ═══════════════════
 function renderChecklist(){
-  const filter=document.getElementById('ck-filter').value;
+  const wrap=$id('checklist-wrap');
+  if(!wrap)return;
+  const farmers=[...new Set(Object.values(FARMERS))].filter(Boolean).sort();
+  const prevFilter=($id('ck-filter')||{}).value||'';
+  const filter=prevFilter;
   const names=allRestNames().filter(n=>!filter||(FARMERS[n]===filter||MANUAL_RESTS[n]?.farmer===filter));
-  if(!names.length){document.getElementById('ck-list').innerHTML='<div class="nodata">No hay restaurantes. Agrega uno con el botón de arriba.</div>';renderRiskAlerts([]);return;}
-  renderRiskAlerts(names);
+  if(!names.length){
+    wrap.innerHTML=`<div class="fbet mb12"><select id="ck-filter" onchange="renderChecklist()" style="width:200px"><option value="">Todos los restaurantes</option>${farmers.map(f=>`<option value="${f}"${f===filter?' selected':''}>${f}</option>`).join('')}</select></div><div class="nodata">No hay restaurantes. Agrega uno con el botón de arriba.</div>`;
+    return;
+  }
   const rg=groupBy();
-  document.getElementById('ck-list').innerHTML=names.map(n=>{
+  const listHtml=names.map(n=>{
     const ords=rg[n]||[];
     const d=CK_DATA[n]||{fecha_cap:'',items:{}};
     const score=SCORE_ITEMS.reduce((s,i)=>s+(d.items&&d.items[i.k]?i.pts:0),0);
@@ -1813,6 +2042,27 @@ function renderChecklist(){
       </div>
     </div>`;
   }).join('');
+  const allAlerts=[];
+  names.forEach(n=>{getRisk(n).forEach(a=>allAlerts.push({name:n,...a}));});
+  let alertsHtml='';
+  if(allAlerts.length){
+    const reds=allAlerts.filter(a=>a.level==='red');
+    const yellows=allAlerts.filter(a=>a.level==='yellow');
+    alertsHtml=`<div class="risk-section mb16">
+      <div class="ct" style="color:${reds.length?'var(--red)':'var(--yellow)'}">⚠️ ${allAlerts.length} alerta${allAlerts.length!==1?'s':''} de riesgo</div>
+      ${reds.map(a=>`<div class="risk-alert"><span style="font-size:16px">🔴</span><div style="flex:1"><strong>${a.name}</strong>${FARMERS[a.name]?`<span class="txs tm" style="margin-left:6px">· ${FARMERS[a.name]}</span>`:''} — ${a.msg}</div><span class="txs tm">${a.action}</span></div>`).join('')}
+      ${yellows.map(a=>`<div class="risk-warn"><span style="font-size:16px">🟡</span><div style="flex:1"><strong>${a.name}</strong>${FARMERS[a.name]?`<span class="txs tm" style="margin-left:6px">· ${FARMERS[a.name]}</span>`:''} — ${a.msg}</div><span class="txs tm">${a.action}</span></div>`).join('')}
+    </div>`;
+  }
+  wrap.innerHTML=`
+    <div class="fbet mb12">
+      <select id="ck-filter" onchange="renderChecklist()" style="width:200px">
+        <option value="">Todos los restaurantes</option>
+        ${farmers.map(f=>`<option value="${f}"${f===filter?' selected':''}>${f}</option>`).join('')}
+      </select>
+    </div>
+    ${alertsHtml}
+    <div id="ck-list">${listHtml}</div>`;
 }
 
 function renderRiskAlerts(names){
@@ -1864,10 +2114,11 @@ function getKAMStats(){
   const fm={};
   names.forEach(n=>{
     const f=FARMERS[n]||'Sin asignar';
-    if(!fm[f])fm[f]={rests:[],cap:0,act:0,actDeriv:0,times:[],scores:[]};
+    if(!fm[f])fm[f]={rests:[],cap:0,act:0,actDeriv:0,times:[],scores:[],cobN:0};
     fm[f].rests.push(n);
     const d=CK_DATA[n]||{};
     const ords=rg[n]||[];
+    fm[f].cobN+=ords.filter(isCob).length;
     const cobOrds=ords.filter(isCob).filter(o=>o.fecha).sort((a,b)=>a.fecha-b.fecha);
     const actDate=cobOrds.length?cobOrds[0].fecha:null;
     const capDate=d.fecha_cap?new Date(d.fecha_cap):null;
@@ -1888,44 +2139,32 @@ function getKAMStats(){
 function renderPerformance(){
   if(!S.orders.length)return;
   const fm=getKAMStats();
-  const fe=Object.entries(fm).filter(([f])=>f!=='Sin asignar'||fm[f].rests.length>0).sort((a,b)=>b[1].actDeriv-a[1].actDeriv);
-  // KPI cards
-  const total={rests:0,cap:0,act:0,actDeriv:0};
-  fe.forEach(([,d])=>{total.rests+=d.rests.length;total.cap+=d.cap;total.act+=d.act;total.actDeriv+=d.actDeriv;});
-  const allTimes=fe.flatMap(([,d])=>d.times);
-  const avgTime=allTimes.length?allTimes.reduce((s,v)=>s+v,0)/allTimes.length:0;
-  document.getElementById('perf-kpis').innerHTML=`
-    <div class="kpi"><div class="kl">Capacitados (mes)</div><div class="kv">${total.cap}</div></div>
-    <div class="kpi"><div class="kl">Activados (mes)</div><div class="kv tg">${total.act}</div></div>
-    <div class="kpi"><div class="kl">Activados Derivados</div><div class="kv tp">${total.actDeriv}</div></div>
-    <div class="kpi"><div class="kl">Tiempo prom. activación</div><div class="kv">${avgTime?avgTime.toFixed(1)+'d':'—'}</div></div>`;
-  // Ranking table
-  document.getElementById('perf-tbody').innerHTML=fe.map(([f,d],i)=>{
-    const avgT=d.times.length?(d.times.reduce((s,v)=>s+v,0)/d.times.length).toFixed(1):'—';
-    const avgS=d.scores.length?(d.scores.reduce((s,v)=>s+v,0)/d.scores.length).toFixed(0):'—';
-    const pct=d.cap?((d.actDeriv/d.cap)*100).toFixed(0)+'%':'—';
-    return `<tr>
-      <td class="bold tm">${i+1}</td>
-      <td class="bold">${f}</td>
-      <td>${d.cap}</td>
-      <td class="tg bold">${d.act}</td>
-      <td class="tp bold">${d.actDeriv}</td>
-      <td>${pct}</td>
-      <td>${avgT!=='—'?avgT+'d':'—'}</td>
-      <td><span class="bold" style="color:${avgS!=='—'?scoreColor(Number(avgS)):'var(--text3)'}">${avgS!=='—'?avgS+'/100':'—'}</span></td>
-      <td>${d.rests.length}</td>
-    </tr>`;
-  }).join('');
+  const fe=Object.entries(fm).filter(([f])=>f!=='Sin asignar'||fm[f].rests.length>0).sort((a,b)=>b[1].cobN-a[1].cobN);
   requestAnimationFrame(()=>{
-    mkChart('ch-pact','bar',fe.map(([f])=>f),[{label:'Activados derivados',data:fe.map(([,d])=>d.actDeriv),backgroundColor:'rgba(255,52,100,.75)',borderRadius:4}],{legendOpts:{display:false}});
-    const scoreData=fe.map(([,d])=>d.scores.length?(d.scores.reduce((s,v)=>s+v,0)/d.scores.length).toFixed(1):0);
-    mkChart('ch-pscore','bar',fe.map(([f])=>f),[{label:'Score prom.',data:scoreData,backgroundColor:fe.map(([,d])=>{const s=d.scores.length?(d.scores.reduce((s2,v)=>s2+v,0)/d.scores.length):0;return scoreColor(s);}),borderRadius:4}],{legendOpts:{display:false},extra:{scales:{x:{ticks:{color:'#C4D2E0',font:{size:11}},grid:{color:'rgba(7,28,45,.08)'}},y:{max:100,ticks:{color:'#C4D2E0',font:{size:11}},grid:{color:'rgba(7,28,45,.08)'}}}}});
+    mkChart('ch-farmer-perf','bar',fe.map(([f])=>f.length>12?f.slice(0,10)+'…':f),[
+      {label:'Cobrables',data:fe.map(([,d])=>d.cobN),backgroundColor:COLORS,borderRadius:4}
+    ],{legendOpts:{display:false}});
+    const months=Object.keys(HISTORY).sort();
+    const mlabels=months.map(m=>{const d=mDate(m);return d.toLocaleString('es-CO',{month:'short',year:'2-digit'});});
+    const topFarmers=fe.slice(0,6).map(([f])=>f);
+    const datasets=topFarmers.map((f,i)=>{
+      const color=COLORS[i%COLORS.length];
+      return {label:f,data:months.map(m=>{
+        const rests=fm[f]?.rests||[];
+        return rests.reduce((s,r)=>s+((HISTORY[m]||{})[r]?.cobrable||0),0);
+      }),borderColor:color,backgroundColor:'transparent',tension:0.4,pointRadius:3};
+    });
+    if(months.length>=2&&datasets.length){
+      mkChart('ch-farmer-hist','line',mlabels,datasets,{legendOpts:{position:'bottom',labels:{font:{size:10}}}});
+    }
   });
 }
 
 // ═══════════════════ PREMIOS ═══════════════════
 function renderPremios(){
   if(!S.orders.length)return;
+  const wrap=$id('premios-wrap');
+  if(!wrap)return;
   const fm=getKAMStats();
   const fe=Object.entries(fm).filter(([f])=>f!=='Sin asignar'&&fm[f].rests.length>0);
 
@@ -1936,7 +2175,7 @@ function renderPremios(){
   }
   function getGrupal(oros){if(oros>=3)return{m:'🥇',l:'Premio Grupal Oro',v:100000};if(oros>=2)return{m:'🥈',l:'Premio Grupal Plata',v:70000};if(oros>=1)return{m:'🥉',l:'Premio Grupal Bronce',v:50000};return{m:'—',l:'Sin premio grupal',v:0};}
 
-  document.getElementById('premios-cards').innerHTML=fe.map(([f,d])=>{
+  wrap.innerHTML=`<div class="g2" id="premios-cards">${fe.length?fe.map(([f,d])=>{
     const avgT=d.times.length?d.times.reduce((s,v)=>s+v,0)/d.times.length:null;
     const avgS=d.scores.length?d.scores.reduce((s,v)=>s+v,0)/d.scores.length:null;
     const p1=getPrize('actDeriv',d.actDeriv);
@@ -1972,14 +2211,15 @@ function renderPremios(){
         <span class="ts bold tl">${pg.v?fmtCOP(pg.v):''}</span>
       </div>
     </div>`;
-  }).join('');
-  if(!fe.length) document.getElementById('premios-cards').innerHTML='<div class="nodata" style="grid-column:1/-1">Asigna farmers a restaurantes para ver los premios</div>';
+  }).join(''):'<div class="nodata" style="grid-column:1/-1">Asigna farmers a restaurantes para ver los premios</div>'}</div>`;
 }
 
 // ═══════════════════ CLIENT REPORT ═══════════════════
 function renderReport(name, pdfMode=false){
-  if(!name)name=document.getElementById('rst-sel').value;
-  if(!name)return;
+  if(!name) name=($id('report-sel')||{}).value;
+  if(!name) return;
+  const rc=$id('report-content');
+  if(!rc) return;
   const ords=S.orders.filter(o=>o.rest===name);
   const cob=ords.filter(isCob), cobN=cob.length;
   const ventas=cob.reduce((s,o)=>s+o.total,0), ticket=cobN?ventas/cobN:0;
@@ -1996,11 +2236,6 @@ function renderReport(name, pdfMode=false){
   S.details.filter(d=>ids.has(d.id)).forEach(d=>{prods[d.prod]=(prods[d.prod]||0)+d.qty;});
   const top5=Object.entries(prods).sort((a,b)=>b[1]-a[1]).slice(0,5);
   const month=S.currentPeriod?mDate(S.currentPeriod).toLocaleString('es-CO',{month:'long',year:'numeric'}):'';
-  let rv=document.getElementById('view-report');
-  if(!rv){
-    rv=document.createElement('div');rv.className='view';rv.id='view-report';document.body.appendChild(rv);
-    const btn=document.createElement('button');btn.className='nb';btn.onclick=()=>showView('report');btn.textContent='📄 Reporte';document.querySelector('nav').appendChild(btn);
-  }
   // Score & tier progress
   const score=getRestScore(name);
   const tp=tierProgress(cobN);
@@ -2008,9 +2243,9 @@ function renderReport(name, pdfMode=false){
   const pendingItems=SCORE_ITEMS.filter(i=>{const d=CK_DATA[name];return !(d&&d.items&&d.items[i.k]);});
   const recs=getReportRecommendations({cobN,canc,rech,ords,prev,score,tp,pendingItems,ticket});
 
-  rv.innerHTML=`<div style="max-width:760px;margin:0 auto" class="${pdfMode?'pdf-brand-mode':''}">
+  rc.innerHTML=`<div style="max-width:760px;margin:0 auto" class="${pdfMode?'pdf-brand-mode':''}">
     <div class="no-print fbet mb16">
-      <button class="btn btn-s btn-sm" onclick="showView('restaurantes')">← Volver</button>
+      <button class="btn btn-s btn-sm" onclick="showView('global')">← Volver</button>
       <button class="btn btn-p btn-sm" onclick="window.print()">🖨 Imprimir / PDF</button>
     </div>
     <div class="rh"><div style="opacity:.7;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Informe mensual — ${month}</div><h1 style="font-size:22px;font-weight:800">${name}</h1><p style="opacity:.8;font-size:14px">Tu resumen de ventas en Menüpp</p></div>
@@ -2169,7 +2404,6 @@ function loadDemo(){
     CK_DATA[n]={fecha_cap:new Date(yr,mo,Math.floor(Math.random()*10)+1).toISOString().slice(0,10),items};
   });
   cloudSave('ck_data',CK_DATA);
-  saveHistory(); populateRstSel();
   showStatus('ok','✅ Demo: 2 meses · 10 restaurantes · 3 farmers con checklist');
-  renderHistCard(); showView('global');
+  refreshDashboard({forceGlobal:true});
 }
