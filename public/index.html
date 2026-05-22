@@ -76,13 +76,13 @@
   </div>
 
   <!-- KPIs -->
-  <div class="g5 mb16" id="kpi-bar"></div>
+  <div class="g6 mb16" id="kpi-bar"></div>
 
   <!-- Charts row 1 -->
   <div class="g2 mb16">
     <div class="card">
-      <div class="ct">📅 Pedidos cobrables por semana</div>
-      <div class="cw"><canvas id="ch-week"></canvas></div>
+      <div class="ct">📅 Pedidos por día del mes</div>
+      <div class="cw"><canvas id="ch-daily"></canvas></div>
     </div>
     <div class="card">
       <div class="ct">🏪 Top restaurantes (cobrables)</div>
@@ -91,31 +91,43 @@
   </div>
 
   <!-- Charts row 2 -->
-  <div class="g3 mb16">
+  <div class="g2 mb16">
     <div class="card">
-      <div class="ct">📊 Distribución tiers</div>
-      <div class="cw-sm"><canvas id="ch-tier"></canvas></div>
+      <div class="ct">📆 Pedidos cobrables por semana</div>
+      <div class="cw"><canvas id="ch-week"></canvas></div>
     </div>
     <div class="card">
       <div class="ct">🌱 Por Farmer</div>
-      <div class="cw-sm"><canvas id="ch-farmer"></canvas></div>
+      <div class="cw"><canvas id="ch-farmer"></canvas></div>
     </div>
+  </div>
+
+  <!-- Distribución tiers (tarjetas) -->
+  <div class="card mb16" id="tier-dist-card">
+    <div class="ct mb12">📊 Distribución por Tier</div>
+    <div id="tier-dist-content"></div>
+  </div>
+
+  <!-- Donuts: estado, tipo, pago -->
+  <div class="g3 mb16">
     <div class="card">
       <div class="ct">📡 Estado de pedidos</div>
       <div class="cw-sm"><canvas id="ch-status"></canvas></div>
     </div>
+    <div class="card">
+      <div class="ct">🛵 Tipo de pedido</div>
+      <div class="cw-sm"><canvas id="ch-tipo"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="ct">💳 Tipo de pago</div>
+      <div class="cw-sm"><canvas id="ch-pago"></canvas></div>
+    </div>
   </div>
 
-  <!-- Map + Ranking historical -->
-  <div class="g2 mb16">
-    <div class="card">
-      <div class="ct">🗺️ Mapa de restaurantes</div>
-      <div id="rest-map"></div>
-    </div>
-    <div class="card">
-      <div class="ct">📈 Ranking histórico por mes</div>
-      <div id="hist-ranking"></div>
-    </div>
+  <!-- Ranking histórico -->
+  <div class="card mb16">
+    <div class="ct">📈 Ranking histórico por mes</div>
+    <div id="hist-ranking"></div>
   </div>
 
   <!-- Tabla global -->
@@ -297,6 +309,6 @@
 </div>
 
 <!-- App logic -->
-<script src="app.js?v=3"></script>
+<script src="app.js?v=4"></script>
 </body>
 </html>

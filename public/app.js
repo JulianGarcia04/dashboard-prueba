@@ -936,9 +936,26 @@ function renderGlobal(){
   }
   renderGlobalKPIs();
   renderGlobalTable();
+  renderGlobalTierCards();
   renderGlobalSidePanels();
   renderGlobalCharts();
   deferCharts(()=>{ renderGlobalCharts(); resizeAllCharts(); });
+}
+
+function getPrevMonthStats(){
+  const keys=Object.keys(HISTORY).sort();
+  if(!keys.length||!S.currentPeriod) return null;
+  const idx=keys.indexOf(S.currentPeriod);
+  const prevKey=idx>0?keys[idx-1]:null;
+  if(!prevKey) return null;
+  const p=HISTORY[prevKey];
+  if(!p) return null;
+  const vals=Object.values(p);
+  const cobrable=vals.reduce((s,v)=>s+(v.cobrable||0),0);
+  const ventas=vals.reduce((s,v)=>s+(v.ventas||0),0);
+  const total=vals.reduce((s,v)=>s+(v.total||0),0);
+  const rests=Object.keys(p).length;
+  return {total,cobrable,ventas,ticket:cobrable?ventas/cobrable:0,rests,period:prevKey};
 }
 
 function renderGlobalKPIs(){
@@ -946,19 +963,41 @@ function renderGlobalKPIs(){
   const total=ords.length, cobN=cobs.length;
   const ventas=cobs.reduce((s,o)=>s+o.total,0), ticket=cobN?ventas/cobN:0;
   const rests=[...new Set(ords.map(o=>o.rest))].length;
-  const prevKeys=Object.keys(HISTORY).sort(), curIdx=prevKeys.indexOf(S.currentPeriod);
-  let prevCob=0,prevVen=0;
-  if(curIdx>0){const p=HISTORY[prevKeys[curIdx-1]];prevCob=Object.values(p).reduce((s,v)=>s+v.cobrable,0);prevVen=Object.values(p).reduce((s,v)=>s+v.ventas,0);}
-  const delta=(cur,prev)=>prev?`<div class="ks ${cur>=prev?'up':'dn'}">${cur>=prev?'▲':'▼'} ${Math.abs(((cur-prev)/prev*100)).toFixed(1)}% vs ant.</div>`:'';
   const armiN=ords.filter(isArmi).length;
   const armiRev=armiN*ARMI_FEE;
+  const prev=getPrevMonthStats();
+  const deltaHtml=(cur,prevVal)=>!prev||prevVal==null||prevVal===0
+    ?'<div class="ks tm">— vs mes ant.</div>'
+    :`<div class="ks ${cur>=prevVal?'up':'dn'}">${cur>=prevVal?'▲':'▼'} ${Math.abs(((cur-prevVal)/prevVal)*100).toFixed(1)}% vs mes ant.</div>`;
   setHTML('kpi-bar',`
-    <div class="kpi"><div class="kl">Pedidos totales</div><div class="kv">${fmt(total)}</div><div class="ks">${S.currentPeriod||''}</div></div>
-    <div class="kpi"><div class="kl">Cobrables</div><div class="kv tp">${fmt(cobN)}</div>${delta(cobN,prevCob)}</div>
-    <div class="kpi"><div class="kl">Ventas</div><div class="kv">${fmtCOP(ventas)}</div>${delta(ventas,prevVen)}</div>
-    <div class="kpi"><div class="kl">Ticket prom.</div><div class="kv">${fmtCOP(ticket)}</div></div>
-    <div class="kpi"><div class="kl">Restaurantes</div><div class="kv">${rests}</div>${armiN?`<div class="ks">Armi: ${fmt(armiN)} · ${fmtCOP(armiRev)}</div>`:''}</div>
+    <div class="kpi"><div class="kl">Total pedidos</div><div class="kv">${fmt(total)}</div>${deltaHtml(total,prev?.total)}<div class="ks">${S.currentPeriod||''}</div></div>
+    <div class="kpi"><div class="kl">Cobrables</div><div class="kv tp">${fmt(cobN)}</div>${deltaHtml(cobN,prev?.cobrable)}</div>
+    <div class="kpi"><div class="kl">Ventas</div><div class="kv">${fmtCOP(ventas)}</div>${deltaHtml(ventas,prev?.ventas)}</div>
+    <div class="kpi"><div class="kl">Ticket prom.</div><div class="kv">${fmtCOP(ticket)}</div>${deltaHtml(ticket,prev?.ticket)}</div>
+    <div class="kpi"><div class="kl">Restaurantes</div><div class="kv">${rests}</div>${deltaHtml(rests,prev?.rests)}</div>
+    <div class="kpi"><div class="kl">Pedidos Armi</div><div class="kv" style="color:var(--lav)">${fmt(armiN)}</div><div class="ks">${armiN?fmtCOP(armiRev)+' total':'Sin pedidos Armi'}</div></div>
   `);
+}
+
+function renderGlobalTierCards(){
+  const rg=groupBy();
+  const tierCounts={1:0,2:0,3:0,4:0}, tierDisc={1:0,2:0,3:0,4:0};
+  Object.entries(rg).forEach(([name,ords])=>{
+    const c=ords.filter(isCob).length, t=getTier(c).tier;
+    tierCounts[t]++;
+    if(has100Score(name)) tierDisc[t]++;
+  });
+  const tColors={1:'var(--t1)',2:'var(--t2)',3:'var(--t3)',4:'var(--t4)'};
+  const tRanges={1:'< 500 ped.',2:'500–999',3:'1 000–4 999',4:'5 000+'};
+  setHTML('tier-dist-content',`
+    <div class="g4">${[1,2,3,4].map(t=>`
+      <div style="background:var(--surface2);border-radius:10px;padding:16px;border-left:3px solid ${tColors[t]}">
+        <div class="txs tm" style="margin-bottom:4px">Tier ${t} <span style="opacity:.6">(${tRanges[t]})</span></div>
+        <div style="font-size:30px;font-weight:800;color:${tColors[t]};line-height:1">${tierCounts[t]}</div>
+        <div class="txs tm" style="margin-top:3px">restaurante${tierCounts[t]!==1?'s':''}</div>
+        ${tierDisc[t]?`<div class="txs" style="margin-top:6px;color:#2ECC71">⭐ ${tierDisc[t]} con 50% dto.</div>`:''}
+      </div>`).join('')}
+    </div>`);
 }
 
 function renderGlobalSidePanels(){
@@ -976,6 +1015,15 @@ function renderGlobalSidePanels(){
 function renderGlobalCharts(){
   if(!S.orders.length) return;
   const ords=S.orders, cobs=ords.filter(isCob);
+
+  const bd={};
+  ords.forEach(o=>{if(!o.fecha)return;const k=o.fecha.toISOString().slice(0,10);if(!bd[k])bd[k]={t:0,c:0};bd[k].t++;if(isCob(o))bd[k].c++;});
+  const days=Object.keys(bd).sort();
+  mkChart('ch-daily','bar',days,[
+    {label:'Cobrables',data:days.map(d=>bd[d].c),backgroundColor:'rgba(255,52,100,.75)',borderRadius:3},
+    {label:'No cob.',data:days.map(d=>bd[d].t-bd[d].c),backgroundColor:'rgba(7,28,45,.12)',borderRadius:3}
+  ],{extra:{scales:{x:{stacked:true,ticks:{color:'#3A5168',font:{size:10},maxRotation:45},grid:{color:'rgba(7,28,45,.08)'}},y:{stacked:true,ticks:{color:'#3A5168',font:{size:11}},grid:{color:'rgba(7,28,45,.08)'}}}}});
+
   const wks={1:[],2:[],3:[],4:[],5:[]};
   cobs.forEach(o=>{if(!o.fecha)return;const d=o.fecha.getDate();wks[d<=7?1:d<=14?2:d<=21?3:d<=28?4:5].push(o);});
   mkChart('ch-week','bar',['Sem 1','Sem 2','Sem 3','Sem 4','Sem 5'],[
@@ -990,12 +1038,6 @@ function renderGlobalCharts(){
   ],{legendOpts:{display:false},extra:{indexAxis:'y',scales:{x:{ticks:{color:'#3A5168',font:{size:11}},grid:{color:'rgba(7,28,45,.08)'}},y:{ticks:{color:'#3A5168',font:{size:10}},grid:{color:'rgba(7,28,45,.08)'}}}}});
 
   const rg2=groupBy();
-  const tierCounts={1:0,2:0,3:0,4:0};
-  Object.entries(rg2).forEach(([,o])=>{tierCounts[getTier(o.filter(isCob).length).tier]++;});
-  mkChart('ch-tier','doughnut',['Tier 1','Tier 2','Tier 3','Tier 4'],[
-    {data:[1,2,3,4].map(t=>tierCounts[t]),backgroundColor:['#FF4057','#C07820','#7070D0','#1A8A50']}
-  ],{legendOpts:{position:'bottom',labels:{font:{size:10}}}});
-
   const fm={};
   Object.entries(rg2).forEach(([name,o])=>{
     const f=FARMERS[name]||'Sin asignar';
@@ -1006,9 +1048,12 @@ function renderGlobalCharts(){
     {label:'Cobrables',data:fe.map(([,v])=>v),backgroundColor:COLORS,borderRadius:4}
   ],{legendOpts:{display:false},extra:{indexAxis:'y',scales:{x:{ticks:{color:'#3A5168',font:{size:11}},grid:{color:'rgba(7,28,45,.08)'}},y:{ticks:{color:'#3A5168',font:{size:10}},grid:{color:'rgba(7,28,45,.08)'}}}}});
 
-  const be={};
-  ords.forEach(o=>{be[o.estado]=(be[o.estado]||0)+1;});
+  const be={},bt={},bp={};
+  ords.forEach(o=>{be[o.estado]=(be[o.estado]||0)+1;bt[o.tipo||'Sin tipo']=(bt[o.tipo||'Sin tipo']||0)+1;});
+  cobs.forEach(o=>{bp[o.pago||'Sin dato']=(bp[o.pago||'Sin dato']||0)+1;});
   mkChart('ch-status','doughnut',Object.keys(be),[{data:Object.values(be),backgroundColor:COLORS}],{legendOpts:{position:'bottom',labels:{font:{size:10}}}});
+  mkChart('ch-tipo','doughnut',Object.keys(bt),[{data:Object.values(bt),backgroundColor:COLORS}],{legendOpts:{position:'bottom',labels:{font:{size:10}}}});
+  mkChart('ch-pago','doughnut',Object.keys(bp),[{data:Object.values(bp),backgroundColor:COLORS}],{legendOpts:{position:'bottom',labels:{font:{size:10}}}});
 
   const months=Object.keys(HISTORY).sort();
   if(months.length>=2){
@@ -1018,8 +1063,6 @@ function renderGlobalCharts(){
       {label:'Cobrables',data:totCob,borderColor:'#FF4057',backgroundColor:'rgba(255,64,87,.1)',fill:true,tension:0.4,pointRadius:4,pointBackgroundColor:'#FF4057'}
     ],{tlabel:c=>fmt(c.raw)});
   }
-
-  setTimeout(()=>initMap(ords),100);
 }
 
 function getRestScore(name){ const d=CK_DATA[name]; if(!d||!d.items)return 0; return SCORE_ITEMS.reduce((s,i)=>s+(d.items[i.k]?i.pts:0),0); }
