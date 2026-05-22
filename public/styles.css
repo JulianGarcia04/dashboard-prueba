@@ -5,14 +5,16 @@
   --text:#071C2D;--text2:#3A5168;--text3:#6A8098;
   --green:#1A8A50;--yellow:#A07A00;--red:#C0392B;--blue:#1A5FA8;
   --t1:#FF4057;--t2:#C07820;--t3:#7070D0;--t4:#1A8A50;
+  --nav-w:170px;
 }
 body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
-nav{background:var(--surface);border-right:1px solid var(--border);padding:16px 10px 16px 10px;display:flex;flex-direction:column;align-items:stretch;gap:3px;width:170px;position:fixed;left:0;top:0;height:100vh;z-index:200;overflow-y:auto}
+nav{background:var(--surface);border-right:1px solid var(--border);padding:16px 10px 16px 10px;display:flex;flex-direction:column;align-items:stretch;gap:3px;width:var(--nav-w);position:fixed;left:0;top:0;height:100vh;z-index:200;overflow-y:auto}
 .logo{font-weight:800;font-size:16px;color:var(--pink);white-space:nowrap;text-align:center;padding:6px 4px 14px 4px;border-bottom:1px solid var(--border);margin-bottom:8px}
 .nb{background:none;border:none;color:var(--text2);padding:8px 12px;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:500;transition:all .15s;text-align:left;width:100%}
 .nb:hover{background:var(--surface2);color:var(--text)}
 .nb.active{background:rgba(255,64,87,.12);color:var(--pink);font-weight:700}
-.view{display:none;padding:20px 20px 20px 20px;max-width:1260px;margin:0;margin-left:170px}
+.app-main{margin-left:var(--nav-w);max-width:1300px;padding:0 20px;min-height:100vh}
+.view{display:none;padding:16px 0 20px;max-width:1260px}
 .view.active{display:block}
 /* cards */
 .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px}
@@ -134,13 +136,24 @@ input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--pi
 .score-report-card{border-radius:10px;padding:16px;margin-bottom:16px}
 .score-item-row{display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:12px}
 .score-item-row:last-child{border:none}
-@media(max-width:768px){.g4,.g5,.g6{grid-template-columns:1fr 1fr}.g3{grid-template-columns:1fr}nav{gap:2px}}
-@media print{nav,.no-print{display:none!important}.view{display:block!important;padding:0;margin-right:0!important}body{background:#fff;color:#000}.card{border:1px solid #ddd;background:#fff}}
+@media(max-width:768px){.g4,.g5,.g6{grid-template-columns:1fr 1fr}.g3{grid-template-columns:1fr}nav{gap:2px;width:100%;height:auto;position:relative}.app-main{margin-left:0;padding:0 12px}}
+/* period selector (global) */
+.period-bar{padding:12px 0 0;position:sticky;top:0;z-index:100;background:var(--bg)}
+.period-card{padding:12px 16px}
+.period-pills{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.period-pill{background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px 14px;font-family:inherit;font-size:13px;font-weight:500;cursor:pointer;transition:all .15s}
+.period-pill:hover{border-color:var(--pink);color:var(--pink)}
+.period-pill.active{background:rgba(255,52,100,.15);border-color:rgba(255,52,100,.5);color:var(--pink);font-weight:700}
+.period-pill.readonly{cursor:default;opacity:.9}
+.period-pill.readonly:hover{border-color:var(--border);color:var(--text)}
+.period-pill.readonly.active:hover{border-color:rgba(255,52,100,.5);color:var(--pink)}
+@media print{nav,.no-print,.period-bar{display:none!important}.app-main{margin-left:0!important;padding:0!important}.view{display:block!important;padding:0!important}body{background:#fff;color:#000}.card{border:1px solid #ddd;background:#fff}}
 
 /* ═══════════════ BRAND PDF / PRINT THEME ═══════════════ */
 /* Brand palette: Beige bg · Blue Code text · Red Table accent */
 @media print {
-  nav, .no-print { display:none !important; }
+  nav, .no-print, .period-bar { display:none !important; }
+  .app-main { margin-left:0 !important; padding:0 !important; }
   .view { margin-left:0 !important; padding:20px !important; }
   body, #view-report {
     --bg:#F9EDDC; --surface:#FFFAF5; --surface2:#EDE7D9; --border:#C8B89A;

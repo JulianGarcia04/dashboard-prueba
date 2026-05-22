@@ -12,6 +12,7 @@ const FIREBASE_CONFIG = window.FIREBASE_CONFIG || {
 const ADMIN_EMAILS = ['product@menupp.co']; // Emails con permiso de subir Excel
 
 let fbApp, fbAuth, fbDb, fbStorage, currentUser=null, isAdmin=false;
+let periodUnsub=null;
 
 function initFirebase(){
   // Si el config tiene los placeholders, saltar auth y entrar directo
@@ -36,9 +37,14 @@ function initFirebase(){
         document.getElementById('nav-upload').style.display = isAdmin ? '' : 'none';
         document.getElementById('admin-upload-zone').style.display = isAdmin ? '' : 'none';
         document.getElementById('farmer-upload-msg').style.display = isAdmin ? 'none' : 'block';
-        loadCloudData().then(()=>renderCloudPeriods());
+        loadCloudData().then(()=>{
+          renderCloudPeriods();
+          listenActivePeriod();
+        });
       } else {
         currentUser=null; isAdmin=false;
+        if(periodUnsub){ periodUnsub(); periodUnsub=null; }
+        setDisplay('period-bar','none');
         document.getElementById('login-screen').style.display='flex';
         document.getElementById('nav-user').style.display='none';
       }
@@ -223,8 +229,15 @@ async function loadCloudOrdersFromList(period){
 }
 
 async function bootstrapOrders(period){
-  if(await loadCloudOrders(period)) return true;
-  if(await loadCloudOrdersFromList(period)) return true;
+  let target=period;
+  if(!target&&fbDb){
+    try{
+      const metaSnap=await fbDb.collection('config').doc('orders_meta').get();
+      if(metaSnap.exists&&metaSnap.data().latest) target=metaSnap.data().latest;
+    }catch(e){ console.warn('bootstrapOrders meta:',e); }
+  }
+  if(await loadCloudOrders(target)) return true;
+  if(await loadCloudOrdersFromList(target)) return true;
   if(restoreOrdersFromCache()){
     normalizeOrderDates();
     refreshDashboard({forceGlobal:true});
@@ -268,6 +281,78 @@ async function saveCloudOrders(){
   renderCloudPeriods(); // refrescar lista
 }
 
+const MONTH_NAMES={'01':'Enero','02':'Febrero','03':'Marzo','04':'Abril','05':'Mayo','06':'Junio','07':'Julio','08':'Agosto','09':'Septiembre','10':'Octubre','11':'Noviembre','12':'Diciembre'};
+function periodLabel(p){
+  const [y,m]=(p||'').split('-');
+  return `${MONTH_NAMES[m]||m||p} ${y||''}`.trim();
+}
+
+function listenActivePeriod(){
+  if(!fbDb||!currentUser) return;
+  if(periodUnsub) periodUnsub();
+  periodUnsub=fbDb.collection('config').doc('orders_meta').onSnapshot(snap=>{
+    if(!snap.exists){ setDisplay('period-bar','none'); return; }
+    renderCloudPeriods(snap.data());
+    if(!isAdmin){
+      const latest=snap.data().latest;
+      if(latest&&latest!==S.currentPeriod){
+        loadCloudOrders(latest);
+      }
+    }
+  },()=>{ setDisplay('period-bar','none'); });
+}
+
+async function switchCloudPeriod(period){
+  if(!isAdmin||!period) return;
+  const ok=await loadCloudOrders(period);
+  if(!ok){
+    showStatus('error',`No se encontraron pedidos para ${periodLabel(period)}`);
+    return;
+  }
+  if(fbDb){
+    const metaRef=fbDb.collection('config').doc('orders_meta');
+    const meta=(await metaRef.get()).data()||{};
+    await metaRef.set({
+      periods:meta.periods||[],
+      latest:period,
+      updated:new Date().toISOString()
+    },{merge:true});
+  }
+}
+
+function renderCloudPeriods(meta){
+  const bar=$id('period-bar');
+  const wrap=$id('cloud-periods');
+  if(!wrap) return;
+  const paint=(data)=>{
+    const periods=[...(data?.periods||[])].sort();
+    const latest=data?.latest||S.currentPeriod;
+    if(!periods.length){
+      if(bar) bar.style.display='none';
+      return;
+    }
+    if(bar) bar.style.display='';
+    const active=S.currentPeriod||latest;
+    const pills=periods.slice().reverse().map(p=>{
+      const isActive=active===p;
+      if(isAdmin){
+        return `<button type="button" class="period-pill${isActive?' active':''}" onclick="switchCloudPeriod('${p}')">${periodLabel(p)}${isActive?' ✓':''}</button>`;
+      }
+      return `<span class="period-pill readonly${isActive?' active':''}">${periodLabel(p)}${isActive?' ✓':''}</span>`;
+    }).join('');
+    const subtitle=isAdmin
+      ?'<p class="txs tm" style="margin-top:4px">Selecciona el mes visible para <strong>todos los usuarios</strong>.</p>'
+      :'<p class="txs tm" style="margin-top:4px">Período configurado por el administrador.</p>';
+    wrap.innerHTML=`<div class="ct" style="margin-bottom:0">☁️ Meses disponibles en la nube</div>${subtitle}<div class="period-pills">${pills}</div>`;
+  };
+  if(meta){ paint(meta); return; }
+  if(!fbDb){ if(bar) bar.style.display='none'; return; }
+  fbDb.collection('config').doc('orders_meta').get().then(snap=>{
+    if(!snap.exists){ if(bar) bar.style.display='none'; return; }
+    paint(snap.data());
+  }).catch(()=>{ if(bar) bar.style.display='none'; });
+}
+
 async function loadCloudOrders(period){
   if(!fbStorage) return false;
   try{
@@ -295,29 +380,6 @@ async function loadCloudOrders(period){
     }
   }catch(e){ console.warn('loadCloudOrders error',e); }
   return await loadCloudOrdersFromList(period);
-}
-
-function renderCloudPeriods(){
-  const wrap=document.getElementById('cloud-periods');
-  if(!wrap||!fbDb) return;
-  fbDb.collection('config').doc('orders_meta').get().then(snap=>{
-    if(!snap.exists){wrap.style.display='none';return;}
-    const {periods=[]}=snap.data();
-    if(!periods.length){wrap.style.display='none';return;}
-    wrap.style.display='';
-    const months={'01':'Enero','02':'Febrero','03':'Marzo','04':'Abril','05':'Mayo','06':'Junio','07':'Julio','08':'Agosto','09':'Septiembre','10':'Octubre','11':'Noviembre','12':'Diciembre'};
-    wrap.innerHTML=`<div class="ct mb12">☁️ Meses disponibles en la nube</div>
-      <div style="display:flex;flex-wrap:wrap;gap:8px">
-        ${[...periods].reverse().map(p=>{
-          const [y,m]=p.split('-');
-          const active=S.currentPeriod===p;
-          return `<button onclick="loadCloudOrders('${p}')"
-            style="background:${active?'rgba(255,52,100,.15)':'var(--surface2)'};border:1px solid ${active?'rgba(255,52,100,.5)':'var(--border)'};color:${active?'var(--pink)':'var(--text)'};border-radius:8px;padding:8px 14px;font-family:inherit;font-size:13px;font-weight:${active?'700':'500'};cursor:pointer">
-            ${months[m]||m} ${y}${active?' ✓':''}
-          </button>`;
-        }).join('')}
-      </div>`;
-  }).catch(()=>{wrap.style.display='none';});
 }
 
 // ═══════════════════ CONSTANTS ═══════════════════

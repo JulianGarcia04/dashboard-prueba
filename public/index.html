@@ -6,7 +6,7 @@
 <title>Menüpp — Dashboard</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="styles.css?v=2">
 
 <!-- External libraries -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -59,6 +59,12 @@
     <button class="nb" onclick="doLogout()" style="margin-top:4px;color:var(--red)">🚪 Salir</button>
   </div>
 </nav>
+
+<main class="app-main">
+<!-- Barra global de período (visible en todas las vistas) -->
+<div id="period-bar" class="period-bar" style="display:none">
+  <div id="cloud-periods" class="card period-card"></div>
+</div>
 
 <!-- ══════════════════════════ VIEW: GLOBAL ══════════════════════════ -->
 <div id="view-global" class="view active">
@@ -291,9 +297,6 @@
     <div style="font-size:13px;color:var(--text2)">Los datos de pedidos los sube el administrador. Tus configuraciones (farmers, checklist, fees) se sincronizan automáticamente.</div>
   </div>
 
-  <!-- Períodos disponibles en la nube -->
-  <div id="cloud-periods" class="card mb16" style="display:none"></div>
-
   <!-- Status message -->
   <div id="ustatus"></div>
 
@@ -307,8 +310,9 @@
     </div>
   </div>
 </div>
+</main>
 
 <!-- App logic -->
-<script src="app.js?v=4"></script>
+<script src="app.js?v=5"></script>
 </body>
 </html>
