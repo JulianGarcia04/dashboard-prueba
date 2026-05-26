@@ -125,7 +125,7 @@ function cloudSave(key, data){
 // ── Cargar todos los datos desde Firestore al hacer login ─────────────────────
 async function loadCloudData(){
   if(!fbDb) return;
-  const keys=['farmers','fees','history','pay_st','ck_data','manual_rests'];
+  const keys=['farmers','fees','history','pay_st','ck_data','manual_rests','rest_info'];
   try{
     const snaps = await Promise.all(keys.map(k=>fbDb.collection('config').doc(k).get()));
     snaps.forEach((snap,i)=>{
@@ -138,6 +138,7 @@ async function loadCloudData(){
         if(keys[i]==='pay_st')      PAY_ST=val;
         if(keys[i]==='ck_data')     CK_DATA=val;
         if(keys[i]==='manual_rests')MANUAL_RESTS=val;
+        if(keys[i]==='rest_info')   REST_INFO=val;
       }
     });
     // Cargar pedidos (Storage JSON → caché local → Excel en Storage)
@@ -189,6 +190,7 @@ function refreshDashboard(opts={}){
   const activeView=opts.forceGlobal?'global':
     $id('view-cobros')?.classList.contains('active')?'cobros':
     $id('view-farmers')?.classList.contains('active')?'farmers':
+    $id('view-restaurantes')?.classList.contains('active')?'restaurantes':
     $id('view-report')?.classList.contains('active')?'report':
     $id('view-upload')?.classList.contains('active')?'upload':
     'global';
@@ -423,6 +425,7 @@ let HISTORY   = LS.get('history')  || {};   // { 'YYYY-MM': { rest: {cobrable,to
 let PAY_ST    = LS.get('pay_st')   || {};   // { 'YYYY-MM:rest': {status,note} }
 let CK_DATA      = LS.get('ck_data')      || {};   // { rest: { fecha_cap, items:{k:bool} } }
 let MANUAL_RESTS = LS.get('manual_rests') || {};   // { rest: { farmer, link, notas, fecha_cap, estado, added } }
+let REST_INFO    = LS.get('rest_info')    || {};   // { rest: { ciudad: string } }
 
 const charts = {};
 let leafMap = null;
@@ -450,12 +453,13 @@ function showView(id){
   if(id==='global') renderGlobal();
   else if(id==='cobros') renderCobros();
   else if(id==='farmers') renderFarmers();
+  else if(id==='restaurantes') renderRestaurantes();
   else if(id==='report'){
     const sel=$id('report-sel');
     if(sel&&sel.value) renderReport(sel.value);
     else setHTML('report-content','<div class="nodata">Selecciona un restaurante arriba para ver el informe.</div>');
   }
-  if(id==='global'||id==='cobros'||id==='farmers'){
+  if(id==='global'||id==='cobros'||id==='farmers'||id==='restaurantes'){
     deferCharts(resizeAllCharts);
   }
 }
@@ -918,6 +922,9 @@ function populateRstSel(){ populateCityFilter();
   if(cf) cf.innerHTML='<option value="">Todos los restaurantes</option>'+farmers.map(f=>`<option value="${f}">${f}</option>`).join('');
   const dlSel=$id('dl-farmer-sel');
   if(dlSel) dlSel.innerHTML='<option value="">Todos los restaurantes</option>'+farmers.map(f=>`<option value="${f}">👤 ${f}</option>`).join('');
+  // Restaurantes module KAM filter
+  const rkf=$id('rst-kam-filter');
+  if(rkf){ const prev=rkf.value; rkf.innerHTML='<option value="">Todos los KAMs</option>'+farmers.map(f=>`<option value="${f}"${f===prev?' selected':''}>${f}</option>`).join(''); }
 }
 
 // ═══════════════════ HELPERS ═══════════════════
@@ -1191,8 +1198,8 @@ function sortAndRender(){
 
 function esc(s){ return s.replace(/'/g,"\\'"); }
 function drillFromG(name){
-  setVal('report-sel',name);
-  renderReport(name);
+  showView('restaurantes');
+  setTimeout(()=>openRestDetail(name),50);
 }
 
 // All known restaurant names (from orders + manual)
@@ -1820,13 +1827,17 @@ async function downloadAllReports(btn){
     ovCount.textContent=`${i+1} / ${rests.length} restaurantes`;
     await new Promise(r=>setTimeout(r,0));
     try{
+      const rv=document.getElementById('view-report');
+      // Force view-report visible off-screen for layout/capture
+      const prevRvCss=rv.style.cssText;
+      rv.style.cssText+='display:block!important;position:absolute!important;left:-9999px!important;top:0!important;width:820px!important;';
       // Renderiza el informe HTML del restaurante
       renderReport(name, true);
       // Espera charts y DOM
       await new Promise(r=>requestAnimationFrame(()=>setTimeout(r,450)));
 
-      const rv=document.getElementById('view-report');
-      const inner=rv.querySelector('div');
+      const rc=document.getElementById('report-content');
+      const inner=rc?.querySelector('div')||rc;
 
       // Oculta mapa (Leaflet no se captura bien) y botones
       const noprints=[...rv.querySelectorAll('.no-print')];
@@ -1857,6 +1868,7 @@ async function downloadAllReports(btn){
 
       // Restaura
       inner.style.width=prevW; inner.style.margin=prevM; inner.style.padding=prevP;
+      rv.style.cssText=prevRvCss;
       noprints.forEach(el=>el.style.visibility='');
       if(mapCard) mapCard.style.display='';
 
@@ -2212,6 +2224,32 @@ function toggleItem(name,key){
   renderChecklist();
 }
 
+function toggleItemForDetail(name,key){
+  if(!CK_DATA[name])CK_DATA[name]={fecha_cap:'',items:{}};
+  if(!CK_DATA[name].items)CK_DATA[name].items={};
+  CK_DATA[name].items[key]=!CK_DATA[name].items[key];
+  cloudSave('ck_data',CK_DATA);
+  renderInlineChecklist(name);
+}
+
+function renderInlineChecklist(name){
+  const sid=name.replace(/[^a-z0-9]/gi,'_');
+  const d=CK_DATA[name]||{fecha_cap:'',items:{}};
+  const score=SCORE_ITEMS.reduce((s,i)=>s+(d.items&&d.items[i.k]?i.pts:0),0);
+  const sc=$id('rst-ck-score-'+sid);
+  if(sc){ sc.innerHTML=score+'<span class="txs tm">/100</span>'; sc.style.color=scoreColor(score); }
+  const bar=$id('rst-ck-bar-'+sid);
+  if(bar){ bar.style.width=score+'%'; bar.style.background=scoreColor(score); }
+  SCORE_ITEMS.forEach(item=>{
+    const el=$id(`rst-cki-${sid}-${item.k}`);
+    if(!el)return;
+    const checked=!!(d.items&&d.items[item.k]);
+    el.classList.toggle('checked',checked);
+    const cb=el.querySelector('input[type=checkbox]');
+    if(cb)cb.checked=checked;
+  });
+}
+
 // ═══════════════════ PERFORMANCE ═══════════════════
 function getKAMStats(){
   const names=[...new Set(S.orders.map(o=>o.rest))].sort();
@@ -2439,10 +2477,11 @@ function renderReport(name, pdfMode=false){
     </div>`:''}
     <div class="card" style="text-align:center;background:rgba(255,64,87,.06);border-color:rgba(255,64,87,.2)"><p class="bold tp" style="font-size:16px">¡Gracias por crecer con Menüpp! 🚀</p><p class="tm ts mt8">Tu canal propio, sin comisiones de marketplace.</p><p class="txs tm" style="margin-top:10px">Período: ${month} · product@menupp.co</p></div>
   </div>`;
-  showView('report');
-  // Init report map after DOM renders
-  const reportOrds = S.orders.filter(o=>o.rest===name);
-  setTimeout(()=>initReportMap(reportOrds), 200);
+  // Init report map after DOM renders (only when actively viewing the Informe tab)
+  if(!pdfMode) {
+    const reportOrds = S.orders.filter(o=>o.rest===name);
+    setTimeout(()=>initReportMap(reportOrds), 200);
+  }
 }
 
 function initReportMap(ords){
@@ -2471,6 +2510,270 @@ function initReportMap(ords){
     }
     setTimeout(()=>{if(reportMap)reportMap.invalidateSize();},300);
   }catch(e){console.error('ReportMap:',e);}
+}
+
+// ═══════════════════ RESTAURANTES MODULE ═══════════════════
+let _rstFilter='', _rstKamFilter='', _currentDetailRest=null;
+
+function renderRestaurantes(){
+  if(!S.orders.length&&!Object.keys(MANUAL_RESTS).length){
+    setHTML('rst-detail-panel','<div class="nodata" style="padding:60px 20px">Sin datos. Carga un Excel primero.</div>');
+    setHTML('rst-list-items','');
+    return;
+  }
+  renderRestList();
+  if(_currentDetailRest) openRestDetail(_currentDetailRest);
+}
+
+function filterRestList(q){
+  if(q!==undefined) _rstFilter=q;
+  else _rstFilter=($id('rst-search')||{}).value||'';
+  _rstKamFilter=($id('rst-kam-filter')||{}).value||'';
+  renderRestList();
+}
+
+function renderRestList(){
+  const rg=groupBy();
+  let names=allRestNames();
+  if(_rstFilter) names=names.filter(n=>n.toLowerCase().includes(_rstFilter.toLowerCase())||
+    (FARMERS[n]||'').toLowerCase().includes(_rstFilter.toLowerCase()));
+  if(_rstKamFilter) names=names.filter(n=>FARMERS[n]===_rstKamFilter||MANUAL_RESTS[n]?.farmer===_rstKamFilter);
+  const cnt=$id('rst-list-count');
+  if(cnt) cnt.textContent=`${names.length} restaurante${names.length!==1?'s':''}`;
+  const html=names.map(n=>{
+    const ords=rg[n]||[];
+    const cobN=ords.filter(isCob).length;
+    const t=getTier(cobN);
+    const score=getRestScore(n);
+    const state=getRestState(n,ords);
+    const kam=FARMERS[n]||MANUAL_RESTS[n]?.farmer||'Sin asignar';
+    const ciudad=REST_INFO[n]?.ciudad||'';
+    const isManual=!!MANUAL_RESTS[n];
+    const risks=getRisk(n);
+    const hasRed=risks.some(r=>r.level==='red');
+    const hasYellow=risks.some(r=>r.level==='yellow');
+    const sid=n.replace(/[^a-z0-9]/gi,'_');
+    const isActive=_currentDetailRest===n;
+    return `<div class="rst-list-item${isActive?' active':''}" id="rst-item-${sid}" onclick="openRestDetail('${esc(n)}')">
+      <div class="rst-name">${hasRed?'🔴 ':hasYellow?'🟡 ':''}${n}${isManual?'<span class="badge bb" style="font-size:9px;margin-left:4px">M</span>':''}</div>
+      <div class="rst-meta"><span class="ts">${kam}${ciudad?' · '+ciudad:''}</span><div style="display:flex;gap:4px;align-items:center"><span class="badge ${t.cls}" style="font-size:9px">${t.label}</span><span style="font-size:11px;font-weight:700;color:${scoreColor(score)}">${score}</span></div></div>
+      <div style="margin-top:3px">${stateBadge(state)}<span class="txs tm" style="margin-left:6px">${fmt(cobN)} ped</span></div>
+    </div>`;
+  }).join('')||'<div class="nodata" style="padding:20px">Sin resultados</div>';
+  setHTML('rst-list-items',html);
+}
+
+function openRestDetail(name){
+  _currentDetailRest=name;
+  // Highlight in list
+  document.querySelectorAll('.rst-list-item').forEach(el=>el.classList.remove('active'));
+  const sid=name.replace(/[^a-z0-9]/gi,'_');
+  const li=$id('rst-item-'+sid); if(li) li.classList.add('active');
+
+  const panel=$id('rst-detail-panel'); if(!panel) return;
+  const ords=S.orders.filter(o=>o.rest===name);
+  const isManual=!!MANUAL_RESTS[name];
+  const hasOrders=ords.length>0;
+
+  const cob=ords.filter(isCob), cobN=cob.length;
+  const ventas=cob.reduce((s,o)=>s+o.total,0);
+  const ticket=cobN?ventas/cobN:0;
+  const canc=ords.filter(o=>o.estado==='Cancelado').length;
+  const desc=cob.reduce((s,o)=>s+o.desc,0);
+  const envio=cob.reduce((s,o)=>s+o.envio,0);
+  const t=getTier(cobN), fee=feeFor(name,cobN), factura=cobN*fee;
+  const ahorro=Math.max(0,ventas*0.27-factura);
+  const prev=prevData(name);
+  const score=getRestScore(name);
+  const state=getRestState(name,ords);
+
+  const kam=FARMERS[name]||'';
+  const ciudad=REST_INFO[name]?.ciudad||ords.find(o=>o.ciudad)?.ciudad||'';
+  const customFee=FEES[name]!=null?FEES[name]:'';
+
+  const wks={1:[],2:[],3:[],4:[],5:[]};
+  cob.forEach(o=>{if(!o.fecha)return;const d=o.fecha.getDate();wks[d<=7?1:d<=14?2:d<=21?3:d<=28?4:5].push(o);});
+
+  const ids=new Set(cob.map(o=>o.id));
+  const prods={};
+  S.details.filter(d=>ids.has(d.id)).forEach(d=>{prods[d.prod]=(prods[d.prod]||0)+d.qty;});
+  const top10=Object.entries(prods).sort((a,b)=>b[1]-a[1]).slice(0,10);
+
+  const ckData=CK_DATA[name]||{fecha_cap:'',items:{}};
+  const ckScore=SCORE_ITEMS.reduce((s,i)=>s+(ckData.items&&ckData.items[i.k]?i.pts:0),0);
+  const hMonths=Object.keys(HISTORY).sort().filter(m=>HISTORY[m][name]);
+
+  panel.innerHTML=`
+  <div class="fbet mb16">
+    <div>
+      <h2 style="font-size:19px;font-weight:800">${name}</h2>
+      <p class="tm ts">${S.currentPeriod||''} · <span class="badge ${t.cls}">${t.label}</span> · ${stateBadge(state)}${isManual?' · <span class="badge bb">Manual</span>':''}</p>
+    </div>
+    <button class="btn btn-p btn-sm" onclick="downloadSingleReport('${esc(name)}')">⬇️ Descargar PDF</button>
+  </div>
+
+  <div class="rst-edit-card mb16">
+    <div class="ct mb12">✏️ Información del restaurante</div>
+    <div class="g3">
+      <div><label class="txs tm bold" style="display:block;margin-bottom:4px">KAM / Farmer</label>
+        <input id="rst-edit-kam" type="text" value="${esc(kam)}" placeholder="Nombre del KAM"></div>
+      <div><label class="txs tm bold" style="display:block;margin-bottom:4px">Ciudad</label>
+        <input id="rst-edit-ciudad" type="text" value="${esc(ciudad)}" placeholder="Ej: Bogotá"></div>
+      <div><label class="txs tm bold" style="display:block;margin-bottom:4px">Fee por pedido (COP)</label>
+        <input id="rst-edit-fee" type="number" min="0" value="${customFee}" placeholder="Tier por defecto: ${getTier(cobN).fee}"></div>
+    </div>
+    <div style="margin-top:10px"><button id="rst-save-btn" class="btn btn-p btn-sm" onclick="saveRestInfo('${esc(name)}')">💾 Guardar</button></div>
+  </div>
+
+  ${hasOrders?`
+  <div class="g5 mb16">
+    <div class="kpi"><div class="kl">Total pedidos</div><div class="kv">${fmt(ords.length)}</div></div>
+    <div class="kpi"><div class="kl">Cobrables</div><div class="kv tp">${fmt(cobN)}</div>${prev?`<div class="ks ${cobN>=prev.cobrable?'up':'dn'}">${cobN>=prev.cobrable?'▲':'▼'} ${Math.abs(((cobN-prev.cobrable)/prev.cobrable*100)).toFixed(0)}% vs ant.</div>`:''}</div>
+    <div class="kpi"><div class="kl">Ventas</div><div class="kv">${fmtCOP(ventas)}</div>${prev?`<div class="ks ${ventas>=prev.ventas?'up':'dn'}">${ventas>=prev.ventas?'▲':'▼'} ${Math.abs(((ventas-prev.ventas)/prev.ventas*100)).toFixed(0)}% vs ant.</div>`:''}</div>
+    <div class="kpi"><div class="kl">Ticket prom.</div><div class="kv">${fmtCOP(ticket)}</div></div>
+    <div class="kpi"><div class="kl">Factura Menüpp</div><div class="kv tp">${fmtCOP(factura)}</div><div class="ks">${fmt(cobN)} × ${fmtCOP(fee)}</div></div>
+  </div>
+  <div class="g2 mb16">
+    <div class="card"><div class="ct">Pedidos por día</div><div class="cw"><canvas id="rst-ch-rd"></canvas></div></div>
+    <div class="card"><div class="ct">Semanas del mes</div><div class="wboxes">${[1,2,3,4,5].map(w=>{
+      const curr=wks[w].length,prevN=w>1?wks[w-1].length:null,delta=prevN!==null?curr-prevN:null;
+      const pct=(prevN!==null&&prevN>0)?((curr-prevN)/prevN*100):null;
+      const isAlert=delta!==null&&delta<0;
+      const pctStr=pct!==null?` (${pct>=0?'+':''}${pct.toFixed(0)}%)`:'';
+      const growBadge=delta===null?'':delta>0?`<div style="font-size:10px;margin-top:3px;color:#1A8A50;font-weight:700">▲ +${delta}${pctStr}</div>`:delta<0?`<div style="font-size:10px;margin-top:3px;color:#C0392B;font-weight:700">▼ ${delta}${pctStr}</div>`:`<div style="font-size:10px;margin-top:3px;color:var(--text3)">≈ igual</div>`;
+      return `<div class="wbox" style="${isAlert?'border-color:#C0392B;background:rgba(192,57,43,.06)':''}"><div class="wnum" style="${isAlert?'color:#C0392B':''}">Sem ${w}${isAlert?' ⚠️':''}</div><div class="wval" style="${isAlert?'color:#C0392B':''}">${curr}</div><div class="wsub">${fmtCOP(wks[w].reduce((s,o)=>s+o.total,0))}</div>${growBadge}</div>`;
+    }).join('')}</div></div>
+  </div>
+  <div class="g3 mb16">
+    <div class="card"><div class="ct">Por Estado</div><div class="cw-sm"><canvas id="rst-ch-re"></canvas></div></div>
+    <div class="card"><div class="ct">Método de pago</div><div class="cw-sm"><canvas id="rst-ch-rp"></canvas></div></div>
+    <div class="card"><div class="ct">Tipo de servicio</div><div class="cw-sm"><canvas id="rst-ch-rt"></canvas></div></div>
+  </div>
+  <div class="g2 mb16">
+    <div class="card"><div class="ct">Top 10 productos${top10.length?'':' (sin datos de detalle)'}</div>
+      ${top10.length?`<div class="tw"><table><thead><tr><th>#</th><th>Producto</th><th>Cant.</th></tr></thead><tbody>${top10.map(([p,q],i)=>`<tr><td class="tm">${i+1}</td><td>${p}</td><td class="bold">${fmt(q)}</td></tr>`).join('')}</tbody></table></div>`:'<div class="nodata" style="padding:16px">Carga la hoja "Detalles de las ordenes"</div>'}
+    </div>
+    <div class="card"><div class="ct">Resumen financiero</div>
+      <div class="sr"><span class="sl">Ventas totales</span><span class="sv">${fmtCOP(ventas)}</span></div>
+      <div class="sr"><span class="sl">Descuentos</span><span class="sv ty">-${fmtCOP(desc)}</span></div>
+      <div class="sr"><span class="sl">Costo envío</span><span class="sv">${fmtCOP(envio)}</span></div>
+      <div class="sr"><span class="sl">Ticket promedio</span><span class="sv">${fmtCOP(ticket)}</span></div>
+      <div class="sr"><span class="sl">Ahorro vs marketplace</span><span class="sv tg">${fmtCOP(ahorro)}</span></div>
+      <div class="sr"><span class="sl bold">Factura Menüpp</span><span class="sv tp bold">${fmtCOP(factura)}</span></div>
+    </div>
+  </div>
+  <div class="g2 mb16">
+    <div class="card"><div class="ct">Estados</div>
+      ${(()=>{const e={};ords.forEach(o=>{e[o.estado]=(e[o.estado]||0)+1;});return Object.entries(e).sort((a,b)=>b[1]-a[1]).map(([s,n])=>`<div class="sr"><span class="sl">${s}</span><span class="sv">${fmt(n)} <span class="tm txs">(${fmtPct(n,ords.length)})</span></span></div>`).join('');})()}
+    </div>
+    <div class="card"><div class="ct">Domiciliarios</div>
+      ${(()=>{const d={};ords.filter(o=>o.dom&&o.dom!=='Sin asignar'&&o.dom!=='').forEach(o=>{d[o.dom]=(d[o.dom]||0)+1;});const e=Object.entries(d).sort((a,b)=>b[1]-a[1]).slice(0,8);return e.length?e.map(([n,c])=>`<div class="sr"><span class="sl">${n}</span><span class="sv">${fmt(c)}</span></div>`).join(''):'<div class="nodata" style="padding:12px">Sin datos</div>';})()}
+    </div>
+  </div>`:'<div class="nodata mb16" style="padding:20px">Sin pedidos en este período.</div>'}
+
+  <div class="card mb16">
+    <div class="fbet mb12">
+      <div class="ct" style="margin:0">✅ Checklist de buenas prácticas</div>
+      <div style="text-align:right">
+        <div id="rst-ck-score-${sid}" class="bold" style="font-size:18px;color:${scoreColor(ckScore)}">${ckScore}<span class="txs tm">/100</span></div>
+        <div class="sbar mt4" style="width:80px;margin-left:auto"><div id="rst-ck-bar-${sid}" class="sbar-fill" style="width:${ckScore}%;background:${scoreColor(ckScore)}"></div></div>
+      </div>
+    </div>
+    <div class="mb12"><label class="txs tm" style="display:block;margin-bottom:6px">📅 Fecha Capacitación</label>
+      <input type="date" value="${ckData.fecha_cap||''}" onchange="saveCKDate('${esc(name)}',this.value)" style="width:180px">
+    </div>
+    <div id="rst-ck-wrap-${sid}" class="ck-grid">
+      ${SCORE_ITEMS.map(item=>{const checked=!!(ckData.items&&ckData.items[item.k]);return `<div id="rst-cki-${sid}-${item.k}" class="ck-item${checked?' checked':''}" onclick="toggleItemForDetail('${esc(name)}','${item.k}')"><span class="ck-dot"></span><input type="checkbox" ${checked?'checked':''} onclick="event.stopPropagation();toggleItemForDetail('${esc(name)}','${item.k}')" style="width:15px;height:15px;flex-shrink:0"><span class="ck-label">${item.l}</span><span class="ck-pts">+${item.pts}pts</span></div>`;}).join('')}
+    </div>
+  </div>
+
+  ${hMonths.length>=2?`<div class="card mb16">
+    <div class="fbet mb12">
+      <div class="ct" style="margin:0">📈 Historial (${hMonths.length} meses)</div>
+      ${(()=>{const hCob=hMonths.map(m=>HISTORY[m][name].cobrable||0);const trend=hCob.length>=2&&hCob[hCob.length-2]?((hCob[hCob.length-1]-hCob[hCob.length-2])/hCob[hCob.length-2]*100):null;return trend!==null?`<span class="badge" style="background:rgba(${trend>=0?'46,204,113':'231,76,60'},.15);color:${trend>=0?'#2ECC71':'#E74C3C'};font-size:11px">${trend>=0?'▲':'▼'} ${Math.abs(trend).toFixed(0)}% vs mes ant.</span>`:'';})()}
+    </div>
+    <div style="height:180px;position:relative"><canvas id="rst-ch-hist"></canvas></div>
+  </div>`:''}
+  `;
+
+  requestAnimationFrame(()=>{
+    if(hasOrders){
+      const bd={};
+      cob.forEach(o=>{if(!o.fecha)return;const k=o.fecha.toISOString().slice(0,10);bd[k]=(bd[k]||0)+1;});
+      const days=Object.keys(bd).sort();
+      mkChart('rst-ch-rd','bar',days,[{label:'Cobrables',data:days.map(d=>bd[d]),backgroundColor:'rgba(255,52,100,.75)',borderRadius:3}],{legendOpts:{display:false}});
+      const be={},bp={},bt={};
+      ords.forEach(o=>{be[o.estado]=(be[o.estado]||0)+1;bt[o.tipo||'Sin tipo']=(bt[o.tipo||'Sin tipo']||0)+1;});
+      cob.forEach(o=>{bp[o.pago||'Sin dato']=(bp[o.pago||'Sin dato']||0)+1;});
+      mkChart('rst-ch-re','doughnut',Object.keys(be),[{data:Object.values(be),backgroundColor:COLORS}],{legendOpts:{position:'bottom',labels:{font:{size:10}}}});
+      mkChart('rst-ch-rp','doughnut',Object.keys(bp),[{data:Object.values(bp),backgroundColor:COLORS}],{legendOpts:{position:'bottom',labels:{font:{size:10}}}});
+      mkChart('rst-ch-rt','doughnut',Object.keys(bt),[{data:Object.values(bt),backgroundColor:COLORS}],{legendOpts:{position:'bottom',labels:{font:{size:10}}}});
+    }
+    if(hMonths.length>=2){
+      const hl=hMonths.map(m=>{const d=mDate(m);return d.toLocaleString('es-CO',{month:'short',year:'2-digit'});});
+      const hc=hMonths.map(m=>HISTORY[m][name].cobrable||0);
+      const hv=hMonths.map(m=>HISTORY[m][name].ventas||0);
+      mkChart('rst-ch-hist','line',hl,[
+        {label:'Cobrables',data:hc,borderColor:'#FF4057',backgroundColor:'rgba(255,64,87,.1)',fill:true,tension:0.4,pointRadius:4,pointBackgroundColor:'#FF4057',yAxisID:'y'},
+        {label:'Ventas',data:hv,borderColor:'#9B97C8',backgroundColor:'transparent',fill:false,tension:0.4,pointRadius:4,pointBackgroundColor:'#9B97C8',borderDash:[4,3],yAxisID:'y1'}
+      ],{tlabel:c=>c.datasetIndex===0?fmt(c.raw):fmtCOP(c.raw),extra:{scales:{
+        x:{ticks:{color:'#C4D2E0',font:{size:10}},grid:{color:'rgba(7,28,45,.08)'}},
+        y:{ticks:{color:'#FF4057',font:{size:10}},grid:{color:'rgba(7,28,45,.08)'},position:'left'},
+        y1:{ticks:{color:'#9B97C8',font:{size:10},callback:v=>fmtCOP(v)},grid:{display:false},position:'right'}
+      }}});
+    }
+  });
+}
+
+function saveRestInfo(name){
+  const kamEl=$id('rst-edit-kam'), ciudadEl=$id('rst-edit-ciudad'), feeEl=$id('rst-edit-fee');
+  if(kamEl){ const v=kamEl.value.trim(); if(v) FARMERS[name]=v; else delete FARMERS[name]; cloudSave('farmers',FARMERS); }
+  if(ciudadEl){ if(!REST_INFO[name])REST_INFO[name]={}; REST_INFO[name].ciudad=ciudadEl.value.trim(); cloudSave('rest_info',REST_INFO); }
+  if(feeEl){ const f=parseFloat(feeEl.value); if(!isNaN(f)&&f>=0) FEES[name]=f; else delete FEES[name]; cloudSave('fees',FEES); }
+  renderRestList();
+  const btn=$id('rst-save-btn');
+  if(btn){btn.textContent='✅ Guardado';setTimeout(()=>btn.textContent='💾 Guardar',2000);}
+}
+
+async function downloadSingleReport(name){
+  const ords=S.orders.filter(o=>o.rest===name);
+  if(!ords.length){alert('Sin pedidos para este restaurante en el período actual.');return;}
+  if(!window.html2canvas) await _loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+  const ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(249,237,220,.97);z-index:9999;display:flex;align-items:center;justify-content:center;font-family:\'Plus Jakarta Sans\',sans-serif';
+  ov.innerHTML=`<div style="text-align:center"><div style="font-size:24px;font-weight:800;color:#FF4057;margin-bottom:8px">menüpp</div><div style="font-size:14px;font-weight:600;color:#071C2D;margin-bottom:4px">Generando PDF…</div><div style="font-size:12px;color:#6A8098">${name}</div></div>`;
+  document.body.appendChild(ov);
+  try{
+    const rv=$id('view-report');
+    // Force view-report visible for layout/capture (pdfMode skips showView inside renderReport)
+    const prevRvCss=rv.style.cssText;
+    rv.style.cssText+='display:block!important;position:absolute!important;left:-9999px!important;top:0!important;width:820px!important;';
+    renderReport(name,true);
+    await new Promise(r=>requestAnimationFrame(()=>setTimeout(r,600)));
+    const rc=$id('report-content');
+    const inner=rc?.querySelector('div')||rc;
+    const noprints=[...rv.querySelectorAll('.no-print')];
+    const mapCard=$id('report-map')?.closest('.card');
+    noprints.forEach(el=>el.style.visibility='hidden');
+    if(mapCard)mapCard.style.display='none';
+    const prevCss=inner.style.cssText;
+    inner.style.cssText+='width:780px!important;margin:0!important;padding:28px!important;box-sizing:border-box!important;';
+    await new Promise(r=>requestAnimationFrame(()=>setTimeout(r,100)));
+    const PW=210, cssW=inner.offsetWidth||780, snapH=inner.scrollHeight;
+    const mmPerPx=PW/cssW, totalH=Math.round(snapH*mmPerPx*10)/10;
+    const canvas=await html2canvas(inner,{scale:3,useCORS:true,backgroundColor:'#F9EDDC',logging:false,allowTaint:true});
+    inner.style.cssText=prevCss;
+    rv.style.cssText=prevRvCss;
+    noprints.forEach(el=>el.style.visibility='');
+    if(mapCard)mapCard.style.display='';
+    const {jsPDF}=window.jspdf;
+    const doc=new jsPDF({format:[PW,totalH],unit:'mm',orientation:'portrait'});
+    doc.addImage(canvas.toDataURL('image/png'),'PNG',0,0,PW,totalH);
+    const safeName=name.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s\-]/g,'_').trim();
+    doc.save(`Informe_${safeName}_${S.currentPeriod||'mes'}.pdf`);
+    showView('restaurantes');
+  }catch(e){console.error('PDF error:',e);alert('Error al generar el PDF.');}
+  finally{document.body.removeChild(ov);}
 }
 
 // ═══════════════════ DEMO ═══════════════════

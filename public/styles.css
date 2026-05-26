@@ -136,7 +136,20 @@ input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--pi
 .score-report-card{border-radius:10px;padding:16px;margin-bottom:16px}
 .score-item-row{display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:12px}
 .score-item-row:last-child{border:none}
-@media(max-width:768px){.g4,.g5,.g6{grid-template-columns:1fr 1fr}.g3{grid-template-columns:1fr}nav{gap:2px;width:100%;height:auto;position:relative}.app-main{margin-left:0;padding:0 12px}}
+/* ═══ RESTAURANTES MODULE ═══ */
+.rst-layout{display:grid;grid-template-columns:290px 1fr;height:calc(100vh - 130px);border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--surface)}
+.rst-list-col{border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;background:var(--surface2)}
+.rst-list-filters{padding:10px 12px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:6px}
+.rst-list-count{font-size:10px;color:var(--text3);padding:4px 12px 0;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.rst-list-items{overflow-y:auto;flex:1}
+.rst-list-item{padding:11px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .12s;border-left:3px solid transparent}
+.rst-list-item:hover{background:rgba(255,255,255,.04)}
+.rst-list-item.active{background:rgba(255,64,87,.07);border-left-color:var(--pink)}
+.rst-list-item .rst-name{font-weight:700;font-size:13px;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px}
+.rst-list-item .rst-meta{font-size:11px;color:var(--text2);display:flex;justify-content:space-between;align-items:center;gap:4px}
+.rst-detail-col{overflow-y:auto;padding:20px}
+.rst-edit-card{background:rgba(164,164,255,.05);border:1px solid rgba(164,164,255,.2);border-radius:10px;padding:16px}
+@media(max-width:768px){.g4,.g5,.g6{grid-template-columns:1fr 1fr}.g3{grid-template-columns:1fr}nav{gap:2px;width:100%;height:auto;position:relative}.app-main{margin-left:0;padding:0 12px}.rst-layout{grid-template-columns:1fr;height:auto}.rst-list-col{height:220px}}
 /* period selector (global) */
 .period-bar{padding:12px 0 0;position:sticky;top:0;z-index:100;background:var(--bg)}
 .period-card{padding:12px 16px}

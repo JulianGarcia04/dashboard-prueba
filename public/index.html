@@ -51,6 +51,7 @@
   <div class="logo">menüpp</div>
   <button class="nb active" onclick="showView('global')">🌐 Global</button>
   <button class="nb" onclick="showView('cobros')">💰 Cobros</button>
+  <button class="nb" onclick="showView('restaurantes')">🏪 Restaurantes</button>
   <button class="nb" onclick="showView('farmers')">🌱 Farmers</button>
   <button class="nb" onclick="showView('report')">📋 Informe</button>
   <button class="nb" id="nav-upload" onclick="showView('upload')">📤 Subir Excel</button>
@@ -259,6 +260,28 @@
   </div>
 </div>
 
+<!-- ══════════════════════════ VIEW: RESTAURANTES ══════════════════════════ -->
+<div id="view-restaurantes" class="view">
+  <div class="fbet mb12">
+    <h2 style="font-size:18px;font-weight:800">🏪 Restaurantes</h2>
+  </div>
+  <div class="rst-layout">
+    <!-- Left: list -->
+    <div class="rst-list-col">
+      <div class="rst-list-filters">
+        <input id="rst-search" type="text" placeholder="🔍 Buscar restaurante…" oninput="filterRestList(this.value)">
+        <select id="rst-kam-filter" onchange="filterRestList()"><option value="">Todos los KAMs</option></select>
+      </div>
+      <div class="rst-list-count" id="rst-list-count"></div>
+      <div id="rst-list-items"></div>
+    </div>
+    <!-- Right: detail -->
+    <div class="rst-detail-col" id="rst-detail-panel">
+      <div class="nodata" style="padding:60px 20px">← Selecciona un restaurante de la lista</div>
+    </div>
+  </div>
+</div>
+
 <!-- ══════════════════════════ VIEW: REPORT ══════════════════════════ -->
 <div id="view-report" class="view">
   <div class="fbet mb16">
@@ -313,6 +336,6 @@
 </main>
 
 <!-- App logic -->
-<script src="app.js?v=5"></script>
+<script src="app.js?v=6"></script>
 </body>
 </html>

@@ -12,7 +12,7 @@ service cloud.firestore {
       allow read: if isSignedIn();
       // Admin: history, orders_meta y todo lo demás
       allow write: if isAdmin()
-        || (isSignedIn() && doc in ['farmers', 'fees', 'pay_st', 'ck_data', 'manual_rests']);
+        || (isSignedIn() && doc in ['farmers', 'fees', 'pay_st', 'ck_data', 'manual_rests', 'rest_info']);
     }
   }
 }
